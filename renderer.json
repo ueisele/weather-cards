@@ -1,0 +1,11 @@
+{
+  "$comment": "Where the chart renderer comes from, and which commit of it. Pinned rather than tracking a branch: a change to the charts should be a commit here, visible in this repository's history, not something that happened to the site overnight. Bump it with `bun run renderer -- --update`, look at the result, then commit the new sha.",
+  "repository": "https://gitlab.com/ueisele/dotfiles.git",
+  "commit": "d937f3e",
+  "entry": "15_opencode/plugins/web-research",
+  "$paths": "The plugin imports a few modules from 15_opencode/shared, so the checkout cannot stop at the plugin's own directory. Fetching both is what makes `bun run renderer` produce something that actually loads.",
+  "paths": [
+    "15_opencode/plugins/web-research",
+    "15_opencode/shared"
+  ]
+}

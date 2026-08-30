@@ -1,0 +1,42 @@
+{
+  "$comment": "The places this site publishes. Editing this file is the whole editorial surface: the next run adds what appeared here and prunes what left. A group is drawn as one places_comparison and holds at most four places, which is both the chart's own limit and the point where four lines stop being readable.",
+
+  "site": {
+    "title": "Almanac",
+    "tagline": "Point forecasts from three models, redrawn every three hours."
+  },
+
+  "places": [
+    {
+      "id": "lomsdal-visten",
+      "name": "Lomsdal-Visten",
+      "latitude": 65.498,
+      "longitude": 13.041,
+      "elevation_m": 883,
+      "note": "Plateau over Velfjord"
+    },
+    {
+      "id": "mosjoen",
+      "name": "Mosjøen",
+      "latitude": 65.836,
+      "longitude": 13.19,
+      "note": "Vefsna valley floor"
+    },
+    {
+      "id": "bronnoysund",
+      "name": "Brønnøysund",
+      "latitude": 65.474,
+      "longitude": 12.209,
+      "note": "Coast"
+    }
+  ],
+
+  "groups": [
+    {
+      "id": "helgeland",
+      "name": "Helgeland",
+      "note": "Plateau, valley and coast within forty kilometres — the comparison is mostly a reading of the terrain.",
+      "places": ["lomsdal-visten", "mosjoen", "bronnoysund"]
+    }
+  ]
+}

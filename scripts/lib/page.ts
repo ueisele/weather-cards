@@ -1,0 +1,342 @@
+/**
+ * The page, generated from the manifest.
+ *
+ * Generated rather than a static shell that fetches the manifest in the browser, because the job
+ * that would have to run anyway can just as well write the anchors out. What that buys: the page
+ * needs no JavaScript to work, `#lomsdal-visten` is a real anchor rather than a router, and a
+ * reader with scripting off sees everything.
+ *
+ * **It follows the system's colour scheme and offers no toggle.** The charts are images with a
+ * theme baked in, chosen by `<picture>` from `prefers-color-scheme`; a toggle on the page would
+ * flip the frame and leave every chart in the other theme.
+ */
+import type { Theme } from "./config"
+import type { Card, GroupEntry, Manifest, PlaceEntry } from "./manifest"
+
+/** The chart canvas. Given on every image so the page reserves the space before one arrives. */
+const CHART_WIDTH = 1920
+const CHART_HEIGHT = 1300
+
+/** Below this many places a filter box is furniture; above it, it is the only way to find one. */
+const FILTER_THRESHOLD = 8
+
+function escape(value: unknown) {
+  return String(value).replace(/[&<>"']/g, (character) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]!
+  ))
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+/** UTC, like everything the tool produces — stated in the footer so the page never implies local. */
+function stamp(iso: string) {
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return iso
+  const day = String(at.getUTCDate()).padStart(2, "0")
+  const time = `${String(at.getUTCHours()).padStart(2, "0")}:${String(at.getUTCMinutes()).padStart(2, "0")}`
+  return `${day} ${MONTHS[at.getUTCMonth()]} ${at.getUTCFullYear()}, ${time} UTC`
+}
+
+function coordinates(latitude: number, longitude: number) {
+  const north = `${Math.abs(latitude).toFixed(3)}°${latitude < 0 ? "S" : "N"}`
+  const east = `${Math.abs(longitude).toFixed(3)}°${longitude < 0 ? "W" : "E"}`
+  return `${north} ${east}`
+}
+
+/**
+ * Which image is fetched immediately. Exactly one — the first on the page, which is what a visitor
+ * is looking at while everything below it is still nothing but reserved space. Marking it lazy
+ * would delay the only image that has to be there at once.
+ */
+type Priority = { first: boolean }
+
+function figure(card: Card, version: string, alt: string, caption: string, priority: Priority) {
+  const eager = priority.first
+  priority.first = false
+  // Relative rather than rooted: index.html sits at the bucket root beside `p/` and `g/`, so one
+  // form works both on the site and in a local `out/` opened straight from the filesystem.
+  const source = (theme: Theme) => `${card.keys[theme]}?v=${encodeURIComponent(version)}`
+  // The link opens the image at its own size, which is how a chart this dense is read on a phone.
+  return `<figure class="chart">
+  <a href="${escape(source("light"))}" class="chart-link">
+    <picture>
+      <source srcset="${escape(source("dark"))}" media="(prefers-color-scheme: dark)">
+      <img src="${escape(source("light"))}" width="${CHART_WIDTH}" height="${CHART_HEIGHT}"
+           loading="${eager ? "eager" : "lazy"}"${eager ? ' fetchpriority="high"' : ""}
+           decoding="async" alt="${escape(alt)}">
+    </picture>
+  </a>
+  <figcaption>${escape(caption)}</figcaption>
+</figure>`
+}
+
+function age(entry: { issued_at: string; problem?: string }, generatedAt: string) {
+  if (entry.issued_at === generatedAt) return `<p class="stamp">Drawn ${escape(stamp(entry.issued_at))}</p>`
+  // A source that failed leaves the previous charts in place. Saying so is the whole point: an old
+  // forecast presented as current is worse than no forecast.
+  return `<p class="stamp stale">
+  <span class="badge">kept</span> Drawn ${escape(stamp(entry.issued_at))}; this run could not redraw it${
+    entry.problem ? ` — ${escape(entry.problem)}` : ""}
+</p>`
+}
+
+function place(entry: PlaceEntry, generatedAt: string, priority: Priority) {
+  const facts = [
+    coordinates(entry.latitude, entry.longitude),
+    entry.elevation_m === undefined ? undefined : `${entry.elevation_m} m`,
+    entry.note,
+  ].filter(Boolean) as string[]
+  const models = entry.models.length === 0 ? "" : `<details class="singles">
+  <summary>Single models<span class="hint"> — ${escape(entry.models.map((card) => card.title).join(", "))}</span></summary>
+  ${entry.models.map((card) => figure(
+    card, entry.version,
+    `${entry.name}: ${card.title} forecast — temperature, precipitation and wind.`,
+    card.title, priority,
+  )).join("\n  ")}
+</details>`
+  return `<section class="place" id="${escape(entry.id)}" data-name="${escape(entry.name.toLowerCase())}">
+  <h3><a href="#${escape(entry.id)}">${escape(entry.name)}</a></h3>
+  <p class="facts">${facts.map((fact) => `<span>${escape(fact)}</span>`).join("<span class=\"dot\">·</span>")}</p>
+  ${age(entry, generatedAt)}
+  ${figure(
+    entry.spread, entry.version,
+    `${entry.name}: all models drawn together — where they agree and where they do not.`,
+    "All models — where they agree, and where they do not", priority,
+  )}
+  ${models}
+</section>`
+}
+
+function group(entry: GroupEntry, members: readonly PlaceEntry[], generatedAt: string, priority: Priority) {
+  return `<section class="group" id="${escape(entry.id)}">
+  <header class="group-head">
+    <h2><a href="#${escape(entry.id)}">${escape(entry.name)}</a></h2>
+    ${entry.note ? `<p class="lede">${escape(entry.note)}</p>` : ""}
+    ${age(entry, generatedAt)}
+  </header>
+  ${figure(
+    entry.comparison, entry.version,
+    `${entry.name}: ${members.map((member) => member.name).join(", ")} compared, one model.`,
+    `${entry.place_ids.length} places, one model (${entry.comparison_model})`, priority,
+  )}
+  ${members.map((member) => place(member, generatedAt, priority)).join("\n  ")}
+</section>`
+}
+
+const STYLE = `
+:root {
+  color-scheme: light dark;
+  /* --card is exactly the chart's own light surface, so a chart has no visible edge on its card. */
+  --ground: #f4f6f8;
+  --card: #ffffff;
+  --ink: #131820;
+  --ink2: #4c5764;
+  --muted: #7c8794;
+  --line: #e4e9ee;
+  --accent: #2a78d6;
+  --flag: #8a5a10;
+  --flag-ground: #fbf1e2;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #0f1318;
+    --card: #171c22;
+    --ink: #eaeef2;
+    --ink2: #aab4c0;
+    --muted: #78828e;
+    --line: #262d35;
+    --accent: #3987e5;
+    --flag: #d9a441;
+    --flag-ground: #26200f;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+a { color: inherit; }
+h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
+
+.bar {
+  position: sticky; top: 0; z-index: 10;
+  background: var(--ground);
+  border-bottom: 1px solid var(--line);
+}
+.bar-inner {
+  max-width: 1180px; margin: 0 auto; padding: 0.75rem 1.25rem;
+  display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap;
+}
+.brand { font-size: 1rem; font-weight: 640; margin: 0; }
+.brand a { text-decoration: none; }
+.jump { display: flex; gap: 0.9rem; overflow-x: auto; flex: 1; scrollbar-width: thin; }
+.jump a { font-size: 0.82rem; color: var(--ink2); text-decoration: none; white-space: nowrap; padding: 0.15rem 0; }
+.jump a:hover, .jump a:focus-visible { color: var(--accent); }
+.filter {
+  font: inherit; font-size: 0.82rem; padding: 0.3rem 0.6rem;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--card); color: var(--ink); min-width: 12ch;
+}
+
+main { max-width: 1180px; margin: 0 auto; padding: 2.25rem 1.25rem 5rem; }
+.lede { color: var(--ink2); max-width: 62ch; margin: 0.35rem 0 0; }
+.intro { margin: 0 0 2.5rem; }
+.intro h1 { font-size: 1.6rem; margin: 0; }
+
+.group { margin: 0 0 3.5rem; }
+.group-head { margin: 0 0 1rem; padding-top: 0.5rem; }
+.group-head h2 { font-size: 1.15rem; margin: 0; }
+.group-head h2 a, .place h3 a { text-decoration: none; }
+.group-head h2 a:hover, .place h3 a:hover { text-decoration: underline; }
+
+.place { margin: 2.5rem 0 0; scroll-margin-top: 4.5rem; }
+.group { scroll-margin-top: 4.5rem; }
+.place h3 { font-size: 1.02rem; margin: 0; }
+.facts { margin: 0.2rem 0 0; color: var(--ink2); font-size: 0.85rem; }
+.facts .dot { color: var(--muted); margin: 0 0.45rem; }
+.facts span:first-child { font-variant-numeric: tabular-nums; }
+.stamp { margin: 0.15rem 0 0.85rem; color: var(--muted); font-size: 0.78rem; }
+.stamp.stale { color: var(--flag); }
+.badge {
+  display: inline-block; background: var(--flag-ground); color: var(--flag);
+  border-radius: 4px; padding: 0.05rem 0.35rem; font-size: 0.72rem;
+  text-transform: uppercase; letter-spacing: 0.04em; margin-right: 0.3rem;
+}
+
+.chart {
+  margin: 0 0 1rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.chart-link { display: block; text-decoration: none; color: inherit; }
+.chart img { display: block; width: 100%; height: auto; }
+.chart figcaption {
+  padding: 0.55rem 0.9rem;
+  border-top: 1px solid var(--line);
+  color: var(--ink2);
+  font-size: 0.8rem;
+}
+.singles { margin: 0 0 1rem; }
+.singles > summary {
+  cursor: pointer; color: var(--ink2); font-size: 0.85rem;
+  padding: 0.5rem 0.1rem; list-style-position: outside;
+}
+.singles > summary:hover { color: var(--ink); }
+.singles .hint { color: var(--muted); }
+.singles[open] > summary { margin-bottom: 0.6rem; }
+
+footer {
+  max-width: 1180px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 0.78rem;
+}
+footer p { margin: 0 0 0.5rem; max-width: 72ch; }
+footer a { color: var(--ink2); }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.hidden { display: none; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+`
+
+/**
+ * The filter, and the only script on the page. Everything above works without it; this narrows a
+ * long list, so it is emitted only where the list is long enough to need narrowing.
+ */
+const FILTER_SCRIPT = `
+(function () {
+  var box = document.getElementById("filter");
+  if (!box) return;
+  box.classList.remove("hidden");
+  box.addEventListener("input", function () {
+    var needle = box.value.trim().toLowerCase();
+    document.querySelectorAll(".place").forEach(function (section) {
+      var match = !needle || (section.dataset.name || "").indexOf(needle) !== -1;
+      section.classList.toggle("hidden", !match);
+    });
+    document.querySelectorAll(".group").forEach(function (section) {
+      var any = section.querySelector(".place:not(.hidden)");
+      section.classList.toggle("hidden", !any);
+    });
+  });
+})();
+`
+
+export function renderPage(manifest: Manifest): string {
+  const priority: Priority = { first: true }
+  const byId = new Map(manifest.places.map((entry) => [entry.id, entry]))
+  const placed = new Set<string>()
+  const sections: string[] = []
+  const jumps: string[] = []
+
+  for (const entry of manifest.groups) {
+    const members = entry.place_ids
+      .map((id) => byId.get(id))
+      .filter((member): member is PlaceEntry => member !== undefined && !placed.has(member.id))
+    for (const member of members) placed.add(member.id)
+    sections.push(group(entry, members, manifest.generated_at, priority))
+    jumps.push(`<a href="#${escape(entry.id)}">${escape(entry.name)}</a>`)
+  }
+
+  const loose = manifest.places.filter((entry) => !placed.has(entry.id))
+  if (loose.length > 0) {
+    sections.push(`<section class="group" id="elsewhere">
+  <header class="group-head"><h2><a href="#elsewhere">Elsewhere</a></h2></header>
+  ${loose.map((entry) => place(entry, manifest.generated_at, priority)).join("\n  ")}
+</section>`)
+    jumps.push(`<a href="#elsewhere">Elsewhere</a>`)
+  }
+
+  const filter = manifest.places.length >= FILTER_THRESHOLD
+    ? `<input id="filter" class="filter hidden" type="search" placeholder="Filter places" aria-label="Filter places">`
+    : ""
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>${escape(manifest.site.title)}</title>
+<meta name="description" content="${escape(manifest.site.tagline ?? `Point forecasts for ${manifest.places.length} places.`)}">
+<style>${STYLE}</style>
+</head>
+<body>
+<div class="bar">
+  <div class="bar-inner">
+    <p class="brand"><a href="#top">${escape(manifest.site.title)}</a></p>
+    <nav class="jump" aria-label="Sections">${jumps.join("")}</nav>
+    ${filter}
+  </div>
+</div>
+<main id="top">
+  <div class="intro">
+    <h1>${escape(manifest.site.title)}</h1>
+    ${manifest.site.tagline ? `<p class="lede">${escape(manifest.site.tagline)}</p>` : ""}
+    <p class="lede">Each place is drawn once with all models together, and once per model. Where the
+      models disagree, the forecast is less certain than any one of them looks. Updated
+      ${escape(stamp(manifest.generated_at))}.</p>
+  </div>
+  ${sections.join("\n  ")}
+</main>
+<footer>
+  <p>Weather data: <a href="https://api.met.no/">MET Norway</a> (NLOD / CC BY 4.0) ·
+     <a href="https://open-meteo.com/">Open-Meteo</a> (CC BY 4.0), serving
+     <a href="https://www.dwd.de/">DWD</a> ICON and <a href="https://www.ecmwf.int/">ECMWF</a> IFS.
+     Each chart names the model it was drawn from.</p>
+  <p><strong>All times are UTC</strong>, including the day columns — the charts have no local
+     timezone and none is implied.</p>
+  <p>Drawn by the point weather tool of
+     <a href="https://gitlab.com/ueisele/dotfiles">web-research</a> at
+     ${escape(manifest.renderer_commit)}. Published from
+     <a href="https://github.com/ueisele/weather-cards">weather-cards</a>.</p>
+</footer>
+${filter ? `<script>${FILTER_SCRIPT}</script>` : ""}
+</body>
+</html>
+`
+}

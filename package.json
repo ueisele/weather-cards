@@ -1,0 +1,12 @@
+{
+  "name": "weather-cards",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "bun scripts/render.ts",
+    "page": "bun scripts/page.ts",
+    "preview": "bun scripts/serve.ts",
+    "deploy": "bun scripts/deploy.ts",
+    "renderer": "bun scripts/fetch-renderer.ts"
+  }
+}

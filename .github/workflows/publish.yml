@@ -1,0 +1,68 @@
+# Redraw every chart and publish it.
+#
+# The cadence is the providers', not a preference: ICON-EU runs eight times a day, ECMWF IFS four,
+# and MET re-serves hourly but re-runs four times. Every three hours is the interval in which
+# something can actually have changed; :35 past leaves Open-Meteo time to have ingested the run.
+#
+# **GitHub disables a scheduled workflow in a public repository after 60 days without repository
+# activity**, and workflow runs do not count as activity. If the site stops updating and nothing
+# else is wrong, look here first: GitHub will have emailed, and one button re-enables it. The job
+# is deliberately a plain `bun` command with everything in the environment, so moving the schedule
+# somewhere with a real cron is a re-host rather than a rewrite.
+name: publish
+
+on:
+  schedule:
+    - cron: "35 */3 * * *"
+  # Editing the places, the renderer pin or the code republishes at once — that is the editing loop.
+  push:
+    branches: [main]
+    paths:
+      - places.json
+      - renderer.json
+      - scripts/**
+      - .github/workflows/publish.yml
+  workflow_dispatch:
+
+# One publish at a time. Two runs would interleave their uploads and their prunes, and the prune of
+# the older one would delete objects the newer one had just written.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.0"
+
+      # The chart renderer, at the commit renderer.json names. A partial, sparse clone of a public
+      # repository: no credential, and about twelve megabytes.
+      - name: Fetch the pinned renderer
+        run: bun run renderer
+
+      # The hostname is a variable rather than a secret: the site is public and its footer links
+      # back to this repository, so the pairing is not something that could be kept.
+      - name: Draw the charts
+        run: bun run render
+        env:
+          WEATHER_CARDS_HOSTNAME: ${{ vars.WEATHER_CARDS_HOSTNAME }}
+
+      # The endpoint carries the Cloudflare account id and the bucket names a bucket in it, so both
+      # are secrets even though neither is a credential.
+      - name: Publish
+        run: bun run deploy
+        env:
+          WEATHER_CARDS_BUCKET: ${{ secrets.WEATHER_CARDS_BUCKET }}
+          WEATHER_CARDS_S3_ENDPOINT: ${{ secrets.WEATHER_CARDS_S3_ENDPOINT }}
+          WEATHER_CARDS_HOSTNAME: ${{ vars.WEATHER_CARDS_HOSTNAME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.WEATHER_CARDS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.WEATHER_CARDS_SECRET_ACCESS_KEY }}

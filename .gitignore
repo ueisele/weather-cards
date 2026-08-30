@@ -1,0 +1,8 @@
+# What the render writes and the deploy uploads. Reproduced by `bun run render`.
+out/
+
+# The renderer checkout, when it is fetched here rather than pointed at.
+.renderer/
+
+# Local credentials and addresses. See .env.example; nothing here is committed.
+.env
