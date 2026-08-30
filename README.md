@@ -54,7 +54,7 @@ dependency, no font, no image tool — so `bun` and a checkout are the whole too
 ### Adding a place
 
 Edit `places.json`, commit, push. The workflow republishes on a push that touches it, and the next
-run adds what appeared and prunes what left — including fetching the map tiles the new places need.
+run adds what appeared and prunes what left — including rendering the map the new places need.
 
 ```json
 {
@@ -150,38 +150,55 @@ for the same reason the group exists: the comparison chart shows Lomsdal-Visten 
 Mosjøen and Brønnøysund, and the map says why — plateau, valley floor, coast, inside forty-six
 kilometres.
 
-**A map changes when `places.json` changes, not every three hours** — so a tile is fetched once and
-then simply stays. The published bucket is the store: a key the previous manifest named is a key the
-bucket holds, so the run leaves it alone — not fetched, not written out, not re-uploaded — while the
-new manifest goes on naming it, which is what stops the prune from removing it. Exactly the
+**A map changes when `places.json` changes, not every three hours** — so the image is fetched once
+and then simply stays. The published bucket is the store: a key the previous manifest named is a key
+the bucket holds, so the run leaves it alone — not fetched, not written out, not re-uploaded — while
+the new manifest goes on naming it, which is what stops the prune from removing it. Exactly the
 arrangement that carries a place's charts over a failed run.
 
-Nothing derived goes into git. Tiles are artefacts like the charts, and git would keep every version
-of every one of them for ever. `.tiles/` is a gitignored local cache so that a render on a laptop
+The key carries a **fingerprint of the extent**, so moving or adding a place produces a new object
+and the old one is pruned. Nothing is ever served stale under a key that changed meaning.
+
+Nothing derived goes into git. Maps are artefacts like the charts, and git would keep every version
+of every one of them for ever. `.maps/` is a gitignored local cache so that a render on a laptop
 does not ask Kartverket for a picture it already has; in CI it is empty and the manifest does the
 same job.
 
-The consequence worth knowing: **a tile is never refreshed on its own.** A Kartverket update does not
-reach a map that is already published. `bun run render --refetch-tiles` is how to ask for one.
+### One image, not a grid of tiles
 
-Nothing is composited and no image is decoded. The tiles stay separate `<img>` in a CSS grid and the
-places go on top as **SVG**, so the markers are crisp at any size, link to their own section, and
-cost no image processing anywhere. The projection is the ordinary Web Mercator arithmetic; the zoom
-is the largest at which the padded extent still fits in three tiles by three.
+[Kartverket](https://kartverket.no/)'s WMS renders an arbitrary extent at an arbitrary size, and it
+renders **for** that size: the label density and the detail are chosen for the pixels asked for. So
+the map is requested at **1920 × 1300, the charts' own canvas** — a real map at that width, not a
+768-pixel one stretched to fit — and it sits in the column at the same width as everything else.
 
-Two things that are decided rather than defaulted:
+Three things follow from it being one image rather than nine:
 
-- **The source is [Kartverket](https://kartverket.no/)'s colour topographic layer** (NLOD, which
-  permits redistribution with attribution — printed under every map). It is the same source the
-  `trails` repo draws its maps from, so the licence question was settled here before this existed.
-  It covers **Norway only**: a group outside roughly 57–81°N / 3–36°E is detected and simply gets no
-  map, with a line in the run's output. An empty blue rectangle would be worse than none.
+- **A click has something to open.** It opens `m/<id>/<fingerprint>.svg`, a standalone document that
+  references the image beside it and carries the same markers, so the full-size view still says
+  which place is which. A tile grid has no single picture behind it to link to.
+- **`image/png8`.** A map is flat colour and line work, so a 256-colour palette loses nothing and
+  weighs less than half — 1.4 MB rather than 3.5 MB at this size. The bytes are an ordinary PNG.
+- **Two links, not nested ones.** The pins are `<a>` elements inside the SVG and so is the surface
+  behind them; the pins are drawn last and take their own clicks, so a pin jumps to that place's
+  charts and the rest of the map opens the full-size version.
+
+Nothing is composited and no image is decoded anywhere. The markers are vector over the picture,
+which is what keeps them crisp at any width — and it is the raster underneath, not the overlay, that
+sets how large the map can usefully be drawn.
+
+Two more things that are decided rather than defaulted:
+
+- **The source is Kartverket's colour topographic layer** (NLOD, which permits redistribution with
+  attribution — printed under every map). It is the same source the `trails` repo draws its maps
+  from, so the licence question was settled here before this existed. It covers **Norway only**: a
+  group outside roughly 57–81°N / 3–36°E is detected and simply gets no map, with a line in the
+  run's output. An empty blue rectangle would be worse than none.
 - **The map keeps its own colours in both themes.** It is a picture of terrain rather than part of
   the page's furniture, and the usual invert-and-hue-rotate trick makes a topographic map look
   cheap. The markers are fixed dark-on-white, which reads on every colour Kartverket draws.
 
-The deploy has a matching rule for the case where a tile does end up in `out/` again: the same
-picture under the same key forever, so an object that already matches byte for byte is skipped.
+The consequence worth knowing: **a map is never refreshed on its own.** A Kartverket update does not
+reach one that is already published. `bun run render --refetch-maps` is how to ask for it.
 
 ### The renderer is pinned
 

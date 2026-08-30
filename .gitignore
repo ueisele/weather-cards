@@ -4,9 +4,9 @@ out/
 # The renderer checkout, when it is fetched here rather than pointed at.
 .renderer/
 
-# Map tiles already fetched on this machine. Derived data, like everything in out/ — the published
+# Map images already fetched on this machine. Derived data, like everything in out/ — the published
 # bucket is the real store, and this only keeps a local render from asking Kartverket again.
-.tiles/
+.maps/
 
 # Local credentials and addresses. See .env.example; nothing here is committed.
 .env

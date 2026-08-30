@@ -25,18 +25,18 @@ export type Card = Readonly<{
 export type MapMarker = Readonly<{ id: string; name: string; x: number; y: number }>
 
 /**
- * A locator map: a grid of tile objects with the places drawn on top as SVG. Not a chart and not
- * weather — it changes when `places.json` changes, so the tiles are committed rather than fetched
- * on the publish path. See `scripts/map.ts`.
+ * A locator map: one rendered image with the places drawn over it as SVG. Not a chart and not
+ * weather — it changes when `places.json` changes, so the image is fetched once and then lives in
+ * the bucket. The keys carry a fingerprint of the extent, so a moved group is a new object rather
+ * than the same one holding a different picture.
  */
 export type MapCard = Readonly<{
-  zoom: number
-  columns: number
-  rows: number
   width_px: number
   height_px: number
-  /** Object keys, in reading order, which is also the grid's order. */
-  tiles: readonly string[]
+  /** The rendered map. */
+  image: string
+  /** The same map with the places drawn into it, standalone — what a click opens. */
+  full: string
   markers: readonly MapMarker[]
   attribution: string
 }>
@@ -92,11 +92,11 @@ export function referencedKeys(manifest: Manifest): Set<string> {
   const keys = new Set<string>()
   for (const place of manifest.places) {
     for (const card of [place.spread, ...place.models]) for (const key of Object.values(card.keys)) keys.add(key)
-    for (const key of place.map?.tiles ?? []) keys.add(key)
+    if (place.map) { keys.add(place.map.image); keys.add(place.map.full) }
   }
   for (const group of manifest.groups) {
     for (const key of Object.values(group.comparison.keys)) keys.add(key)
-    for (const key of group.map?.tiles ?? []) keys.add(key)
+    if (group.map) { keys.add(group.map.image); keys.add(group.map.full) }
   }
   return keys
 }

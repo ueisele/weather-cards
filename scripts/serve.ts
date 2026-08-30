@@ -15,6 +15,7 @@ const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".png": "image/png",
+  ".svg": "image/svg+xml; charset=utf-8",
 }
 
 const root = resolve(REPOSITORY_ROOT, process.env.WEATHER_CARDS_OUT ?? "out")
