@@ -14,11 +14,13 @@
  * once, and only the image actually shown is ever fetched.
  */
 import type { Theme } from "./config"
-import type { Card, GroupEntry, Manifest, PlaceEntry } from "./manifest"
+import type { Card, GroupEntry, Manifest, MapCard, PlaceEntry } from "./manifest"
 
 /** The chart canvas. Given on every image so the page reserves the space before one arrives. */
 const CHART_WIDTH = 1920
 const CHART_HEIGHT = 1300
+/** One map tile, and the width every tile image is given so the grid reserves its space. */
+const TILE_SIZE = 256
 
 /** Below this many places a filter box is furniture; above it, it is the only way to find one. */
 const FILTER_THRESHOLD = 8
@@ -76,6 +78,45 @@ function figure(card: Card, version: string, alt: string, caption: string, prior
 </figure>`
 }
 
+/**
+ * The locator map: a grid of tile images with the places drawn on top as SVG.
+ *
+ * Nothing is composited — the tiles stay separate `<img>` in a grid and the markers are vector, so
+ * they are crisp at any size, carry links to their own section, and cost no image processing
+ * anywhere. The SVG's viewBox is the composed pixel size, so it scales with the frame.
+ *
+ * **The map keeps its own colours in both themes.** It is a picture of terrain, not part of the
+ * page's furniture, and the usual invert-and-rotate trick makes a topographic map look cheap. The
+ * markers are therefore fixed dark-on-white, which reads on every colour Kartverket draws.
+ */
+function mapFigure(card: MapCard, caption: string) {
+  const tiles = card.tiles.map((key) =>
+    `<img src="${escape(key)}" width="${TILE_SIZE}" height="${TILE_SIZE}" loading="lazy" decoding="async" alt="">`
+  ).join("\n        ")
+  const pins = card.markers.map((marker) => {
+    // A label that would run off the right edge is set on the other side of its dot instead.
+    const right = marker.x > card.width_px * 0.62
+    return `<a href="#${escape(marker.id)}">
+          <circle class="map-pin" cx="${marker.x.toFixed(1)}" cy="${marker.y.toFixed(1)}" r="6"></circle>
+          <text class="map-label" x="${(marker.x + (right ? -12 : 12)).toFixed(1)}" y="${(marker.y + 5).toFixed(1)}"
+                text-anchor="${right ? "end" : "start"}">${escape(marker.name)}</text>
+        </a>`
+  }).join("\n        ")
+  const names = card.markers.map((marker) => marker.name).join(", ")
+  return `<figure class="chart map">
+    <div class="map-frame" style="aspect-ratio:${card.width_px}/${card.height_px}">
+      <div class="map-tiles" style="grid-template-columns:repeat(${card.columns},1fr)">
+        ${tiles}
+      </div>
+      <svg class="map-pins" viewBox="0 0 ${card.width_px} ${card.height_px}" role="img"
+           aria-label="Locator map: ${escape(names)}">
+        ${pins}
+      </svg>
+    </div>
+    <figcaption>${escape(caption)} <span class="credit">${escape(card.attribution)}</span></figcaption>
+  </figure>`
+}
+
 function age(entry: { issued_at: string; problem?: string }, generatedAt: string) {
   if (entry.issued_at === generatedAt) return `<p class="stamp">Drawn ${escape(stamp(entry.issued_at))}</p>`
   // A source that failed leaves the previous charts in place. Saying so is the whole point: an old
@@ -104,6 +145,7 @@ function place(entry: PlaceEntry, generatedAt: string, priority: Priority) {
   <h3><a href="#${escape(entry.id)}">${escape(entry.name)}</a></h3>
   <p class="facts">${facts.map((fact) => `<span>${escape(fact)}</span>`).join("<span class=\"dot\">·</span>")}</p>
   ${age(entry, generatedAt)}
+  ${entry.map ? mapFigure(entry.map, "Where it is.") : ""}
   ${figure(
     entry.spread, entry.version,
     `${entry.name}: all models drawn together — where they agree and where they do not.`,
@@ -120,6 +162,7 @@ function group(entry: GroupEntry, members: readonly PlaceEntry[], generatedAt: s
     ${entry.note ? `<p class="lede">${escape(entry.note)}</p>` : ""}
     ${age(entry, generatedAt)}
   </header>
+  ${entry.map ? mapFigure(entry.map, "Where these places are.") : ""}
   ${figure(
     entry.comparison, entry.version,
     `${entry.name}: ${members.map((member) => member.name).join(", ")} compared, one model.`,
@@ -251,6 +294,22 @@ main { max-width: 1180px; margin: 0 auto; padding: 2.25rem 1.25rem 5rem; }
   color: var(--ink2);
   font-size: 0.8rem;
 }
+/* The map keeps one set of colours in both themes; only its frame follows the page. */
+.map { max-width: 768px; }
+.map-frame { position: relative; }
+.map-tiles { display: grid; line-height: 0; }
+.map-tiles img { display: block; width: 100%; height: auto; }
+.map-pins { position: absolute; inset: 0; width: 100%; height: 100%; }
+.map-pins a { cursor: pointer; }
+.map-pin { fill: #1b1f24; stroke: #ffffff; stroke-width: 2.5; }
+.map-label {
+  font: 600 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  fill: #1b1f24; stroke: #ffffff; stroke-width: 3.5; paint-order: stroke;
+}
+.map-pins a:hover .map-pin { fill: #2a78d6; }
+.map-pins a:hover .map-label { fill: #2a78d6; }
+.credit { color: var(--muted); }
+
 .singles { margin: 0 0 1rem; }
 .singles > summary {
   cursor: pointer; color: var(--ink2); font-size: 0.85rem;

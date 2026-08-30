@@ -33,7 +33,10 @@ const TYPES: Record<string, string> = {
 }
 
 /** Everything the site is made of lives under one of these; the prune looks nowhere else. */
-const MANAGED_PREFIXES = ["p/", "g/"]
+const MANAGED_PREFIXES = ["p/", "g/", "m/"]
+
+/** Map tiles never change under their key, so an upload that already matches is skipped. */
+const IMMUTABLE_PREFIX = "m/"
 
 const dry = process.argv.includes("--dry-run")
 
@@ -84,41 +87,50 @@ const carried = [...referenced].filter((key) => !present.has(key))
 const ignored = [...present].filter((key) => !referenced.has(key) && key !== MANIFEST_KEY && key !== PAGE_KEY)
 
 console.log(`${manifest.generated_at} -> ${bucket}`)
-console.log(`  ${images.length} images to upload, ${carried.length} already in place${
-  ignored.length > 0 ? `, ${ignored.length} file(s) in out/ the manifest does not name (${ignored.slice(0, 3).join(", ")}${ignored.length > 3 ? ", …" : ""})` : ""}`)
+
+// What the bucket already holds, read once and used twice: to skip re-uploading map tiles, and to
+// find what the manifest no longer names. Bounded rather than a `while (truncated)` — a listing
+// that silently stopped early would leave objects behind, and one that ran away would be deleting
+// from a bucket it cannot enumerate.
+const MAX_PAGES = 50
+const existing = new Map<string, number>()
+for (const prefix of MANAGED_PREFIXES) {
+  let token: string | undefined
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const listed = await client.list({ prefix, maxKeys: 1000, ...(token ? { continuationToken: token } : {}) })
+    for (const entry of listed.contents ?? []) existing.set(entry.key, entry.size ?? -1)
+    if (!listed.isTruncated) break
+    token = listed.nextContinuationToken
+    if (!token) break
+    if (page === MAX_PAGES - 1) throw new Error(`${prefix} holds more objects than this deploy will list.`)
+  }
+}
 
 async function put(key: string, body: Uint8Array | string) {
   if (dry) return
   await client.write(key, body, { type: TYPES[extname(key)] ?? "application/octet-stream" })
 }
 
+let uploaded = 0
+let skipped = 0
 for (const key of images) {
-  await put(key, await Bun.file(join(out, key)).bytes())
+  const body = await Bun.file(join(out, key)).bytes()
+  // A map tile is the same picture under the same key forever, so re-uploading it every three
+  // hours would be pure waste. Charts are always written: a redraw of the same hour is still new.
+  if (key.startsWith(IMMUTABLE_PREFIX) && existing.get(key) === body.byteLength) { skipped++; continue }
+  await put(key, body)
+  uploaded++
 }
 // The manifest and the page last, and in that order: the page is what a visitor lands on, so it is
 // the final thing to change, and the next run reads the manifest to know what it may keep.
 await put(MANIFEST_KEY, await Bun.file(join(out, MANIFEST_KEY)).text())
 await put(PAGE_KEY, await Bun.file(join(out, PAGE_KEY)).text())
-console.log(`  ${dry ? "would upload" : "uploaded"} ${images.length + 2} objects`)
+console.log(`  ${dry ? "would upload" : "uploaded"} ${uploaded + 2} objects${
+  skipped > 0 ? `, ${skipped} map tile(s) already identical` : ""}${
+  carried.length > 0 ? `, ${carried.length} kept from an earlier run` : ""}${
+  ignored.length > 0 ? `\n  ${ignored.length} file(s) in out/ the manifest does not name, left alone (${ignored.slice(0, 3).join(", ")}${ignored.length > 3 ? ", …" : ""})` : ""}`)
 
-// The prune. Bounded rather than a `while (truncated)`: a listing that silently stopped early would
-// leave objects behind, and one that ran away would be deleting from a bucket it cannot enumerate.
-const MAX_PAGES = 50
-const stale: string[] = []
-for (const prefix of MANAGED_PREFIXES) {
-  let token: string | undefined
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const listed = await client.list({ prefix, maxKeys: 1000, ...(token ? { continuationToken: token } : {}) })
-    for (const entry of listed.contents ?? []) {
-      if (!referenced.has(entry.key)) stale.push(entry.key)
-    }
-    if (!listed.isTruncated) break
-    token = listed.nextContinuationToken
-    if (!token) break
-    if (page === MAX_PAGES - 1) throw new Error(`${prefix} holds more objects than this prune will list.`)
-  }
-}
-
+const stale = [...existing.keys()].filter((key) => !referenced.has(key)).sort()
 for (const key of stale) {
   console.log(`  ${dry ? "would remove" : "removing"} ${key}`)
   if (!dry) await client.delete(key)

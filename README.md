@@ -54,7 +54,7 @@ dependency, no font, no image tool — so `bun` and a checkout are the whole too
 ### Adding a place
 
 Edit `places.json`, commit, push. The workflow republishes on a push that touches it, and the next
-run adds what appeared and prunes what left.
+run adds what appeared and prunes what left — including fetching the map tiles the new places need.
 
 ```json
 {
@@ -141,6 +141,47 @@ theme does not arrive as a flash of the other one. A system change while the pag
 followed as long as the choice is Auto.
 
 The rest of the script is a filter box, emitted only once there are at least eight places.
+
+### The map is not weather
+
+Each group carries a locator map, and a place in no group carries one of its own — because a place
+without one would be the only thing on the page that does not say where it is. It is worth having
+for the same reason the group exists: the comparison chart shows Lomsdal-Visten seven degrees below
+Mosjøen and Brønnøysund, and the map says why — plateau, valley floor, coast, inside forty-six
+kilometres.
+
+**A map changes when `places.json` changes, not every three hours** — so a tile is fetched once and
+then simply stays. The published bucket is the store: a key the previous manifest named is a key the
+bucket holds, so the run leaves it alone — not fetched, not written out, not re-uploaded — while the
+new manifest goes on naming it, which is what stops the prune from removing it. Exactly the
+arrangement that carries a place's charts over a failed run.
+
+Nothing derived goes into git. Tiles are artefacts like the charts, and git would keep every version
+of every one of them for ever. `.tiles/` is a gitignored local cache so that a render on a laptop
+does not ask Kartverket for a picture it already has; in CI it is empty and the manifest does the
+same job.
+
+The consequence worth knowing: **a tile is never refreshed on its own.** A Kartverket update does not
+reach a map that is already published. `bun run render --refetch-tiles` is how to ask for one.
+
+Nothing is composited and no image is decoded. The tiles stay separate `<img>` in a CSS grid and the
+places go on top as **SVG**, so the markers are crisp at any size, link to their own section, and
+cost no image processing anywhere. The projection is the ordinary Web Mercator arithmetic; the zoom
+is the largest at which the padded extent still fits in three tiles by three.
+
+Two things that are decided rather than defaulted:
+
+- **The source is [Kartverket](https://kartverket.no/)'s colour topographic layer** (NLOD, which
+  permits redistribution with attribution — printed under every map). It is the same source the
+  `trails` repo draws its maps from, so the licence question was settled here before this existed.
+  It covers **Norway only**: a group outside roughly 57–81°N / 3–36°E is detected and simply gets no
+  map, with a line in the run's output. An empty blue rectangle would be worse than none.
+- **The map keeps its own colours in both themes.** It is a picture of terrain rather than part of
+  the page's furniture, and the usual invert-and-hue-rotate trick makes a topographic map look
+  cheap. The markers are fixed dark-on-white, which reads on every colour Kartverket draws.
+
+The deploy has a matching rule for the case where a tile does end up in `out/` again: the same
+picture under the same key forever, so an object that already matches byte for byte is skipped.
 
 ### The renderer is pinned
 

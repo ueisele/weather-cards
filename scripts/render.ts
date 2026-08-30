@@ -16,11 +16,12 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
-import { loadSite, MODEL_LABELS, MODELS, THEMES, type Group, type Place, type Theme } from "./lib/config"
+import { loadSite, MODEL_LABELS, MODELS, THEMES, type Place, type Theme } from "./lib/config"
+import { fetchTile, markerPoints, planTiles, tileKeys, tileUrl, TILE_ATTRIBUTION, withinCoverage } from "./lib/tiles"
 import { loadRenderer, readPin, REPOSITORY_ROOT } from "./lib/renderer"
 import {
   isManifest, MANIFEST_KEY, PAGE_KEY, SCHEMA_VERSION, versionToken,
-  type Card, type GroupEntry, type Manifest, type PlaceEntry,
+  type Card, type GroupEntry, type Manifest, type MapCard, type PlaceEntry,
 } from "./lib/manifest"
 import { renderPage } from "./lib/page"
 
@@ -62,6 +63,75 @@ function target(place: Place) {
     latitude: place.latitude,
     longitude: place.longitude,
     ...(place.elevation_m === undefined ? {} : { elevation_m: place.elevation_m }),
+  }
+}
+
+/**
+ * Where the map tiles fetched on this machine are kept. Gitignored, and not the real store: a tile
+ * that has been published lives in the bucket. This only keeps a local render from asking
+ * Kartverket for the same picture again.
+ */
+const TILE_CACHE = resolve(REPOSITORY_ROOT, ".tiles")
+const refetchTiles = process.argv.includes("--refetch-tiles")
+
+/**
+ * The locator map for one group, or for a place in no group.
+ *
+ * **A map is not weather.** It changes when `places.json` changes, so a tile is fetched once and
+ * then simply stays: a key the previous manifest named is a key the bucket holds, and it is left
+ * alone — not fetched, not written out, not re-uploaded — while the new manifest goes on naming it,
+ * which is what keeps the prune from removing it. Exactly the arrangement that carries a place's
+ * charts over a failed run.
+ *
+ * The consequence worth knowing: a tile is never refreshed on its own, so a Kartverket update does
+ * not reach a map that is already published. `--refetch-tiles` is the way to ask for one.
+ */
+async function mapCard(
+  id: string,
+  places: readonly Place[],
+  out: string,
+  published: ReadonlySet<string>,
+): Promise<MapCard | undefined> {
+  if (!withinCoverage(places)) return undefined
+  const plan = planTiles(places)
+  const tiles: string[] = []
+  let fetched = 0
+  let cached = 0
+  let kept = 0
+
+  for (const tile of tileKeys(plan)) {
+    const key = `m/${id}/${tile.name}`
+    tiles.push(key)
+    if (!refetchTiles && published.has(key)) { kept++; continue }
+
+    const local = join(TILE_CACHE, tile.name)
+    let bytes: Uint8Array
+    if (!refetchTiles && await Bun.file(local).exists()) {
+      bytes = await Bun.file(local).bytes()
+      cached++
+    } else {
+      bytes = await fetchTile(tileUrl(plan.zoom, tile.x, tile.y))
+      await mkdir(TILE_CACHE, { recursive: true })
+      await writeFile(local, bytes)
+      fetched++
+    }
+    const path = join(out, key)
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, bytes)
+  }
+
+  console.log(`  ${id}: map at zoom ${plan.zoom}, ${plan.columns}\u00d7${plan.rows} tiles — ${
+    [kept > 0 ? `${kept} already published` : "", cached > 0 ? `${cached} from the local cache` : "",
+     fetched > 0 ? `${fetched} fetched from Kartverket` : ""].filter(Boolean).join(", ")}`)
+  return {
+    zoom: plan.zoom, columns: plan.columns, rows: plan.rows,
+    width_px: plan.width_px, height_px: plan.height_px,
+    tiles,
+    markers: markerPoints(places, plan).map((point) => ({
+      ...point,
+      name: places.find((place) => place.id === point.id)!.name,
+    })),
+    attribution: TILE_ATTRIBUTION,
   }
 }
 
@@ -236,6 +306,25 @@ try {
   }
 } finally {
   await rm(storeRoot, { recursive: true, force: true })
+}
+
+// Maps are attached last and to every entry, carried-over ones included: a source outage says
+// nothing about where a place is. Every tile the previous run published is already in the bucket.
+const published = new Set([
+  ...(previous?.places ?? []).flatMap((entry) => entry.map?.tiles ?? []),
+  ...(previous?.groups ?? []).flatMap((entry) => entry.map?.tiles ?? []),
+])
+const grouped = new Set(site.groups.flatMap((group) => group.places.map((place) => place.id)))
+for (const [index, entry] of places.entries()) {
+  if (grouped.has(entry.id)) continue
+  const card = await mapCard(entry.id, [entry], out, published)
+  if (card) places[index] = { ...entry, map: card }
+}
+for (const group of site.groups) {
+  const index = groups.findIndex((entry) => entry.id === group.id)
+  if (index < 0) continue
+  const card = await mapCard(group.id, group.places, out, published)
+  if (card) groups[index] = { ...groups[index]!, map: card }
 }
 
 if (places.length === 0) {
