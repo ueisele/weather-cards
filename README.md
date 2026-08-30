@@ -117,11 +117,30 @@ a real anchor rather than a router, and a reader with scripting off sees everyth
 scrollable page: the group's comparison, then each place with its spread, with the three single
 models behind a `<details>` that fetches nothing until it is opened.
 
-It follows the system's colour scheme and offers **no toggle** — the charts are images with a theme
-baked in, chosen by `<picture>` from `prefers-color-scheme`, and a toggle would flip the frame while
-leaving every chart in the other theme.
+### The theme moves the frame and the pictures together
 
-The only script on the page is a filter box, emitted only once there are at least eight places.
+The charts are images with a theme baked in, so the page and the pictures have to agree or half the
+screen is one thing and half the other. Without scripting, `<picture>` picks by
+`prefers-color-scheme` and there is no switch to get it wrong.
+
+The **Auto / Light / Dark** control in the bar overrides that, and the way it does is worth knowing,
+because it is what keeps the two halves together at no cost:
+
+- the page's tokens follow `data-theme` on the root, defined for all three states — the system's
+  choice, an explicit dark, and an explicit *light on a dark system*, which is the one a palette
+  written only inside a media query gets wrong;
+- the charts follow the same choice by having their `<source>`'s **media query itself** rewritten —
+  `all` always matches, so the dark image wins; `not all` never matches, so the `<img>`'s own light
+  source wins. One attribute per image, and only the image actually on the screen is ever fetched;
+- the **full-size link follows too**. Both addresses ride on the link as `data-light` and
+  `data-dark`, and the script sets `href` from the theme in force. Without it a click on a dark
+  chart opened the light one — which was the first thing anyone noticed.
+
+The choice is remembered in `localStorage` and applied before the first paint, so an overridden
+theme does not arrive as a flash of the other one. A system change while the page is open is
+followed as long as the choice is Auto.
+
+The rest of the script is a filter box, emitted only once there are at least eight places.
 
 ### The renderer is pinned
 

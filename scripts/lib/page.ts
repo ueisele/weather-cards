@@ -6,9 +6,12 @@
  * needs no JavaScript to work, `#lomsdal-visten` is a real anchor rather than a router, and a
  * reader with scripting off sees everything.
  *
- * **It follows the system's colour scheme and offers no toggle.** The charts are images with a
- * theme baked in, chosen by `<picture>` from `prefers-color-scheme`; a toggle on the page would
- * flip the frame and leave every chart in the other theme.
+ * **The theme is the system's, and can be overridden.** The charts are images with a theme baked
+ * in, so the frame and the pictures have to move together or the page is half one thing and half
+ * the other. Without scripting, `<picture>` picks by `prefers-color-scheme` and there is no switch.
+ * With it, the switch changes the `<source>`'s media query itself — `all` always matches, `not all`
+ * never does — so one attribute per image moves the pictures, the tokens and the full-size links at
+ * once, and only the image actually shown is ever fetched.
  */
 import type { Theme } from "./config"
 import type { Card, GroupEntry, Manifest, PlaceEntry } from "./manifest"
@@ -54,11 +57,14 @@ function figure(card: Card, version: string, alt: string, caption: string, prior
   const eager = priority.first
   priority.first = false
   // Relative rather than rooted: index.html sits at the bucket root beside `p/` and `g/`, so one
-  // form works both on the site and in a local `out/` opened straight from the filesystem.
+  // form works both on the site and in a local `out/` opened through `bun run preview`.
   const source = (theme: Theme) => `${card.keys[theme]}?v=${encodeURIComponent(version)}`
-  // The link opens the image at its own size, which is how a chart this dense is read on a phone.
+  // The link opens the chart at its own size, which is how something this dense is read on a phone.
+  // Both addresses ride along, because which one is right depends on the theme on the screen: the
+  // script sets `href` from these, and without scripting it stays on the light one the `<img>` has.
   return `<figure class="chart">
-  <a href="${escape(source("light"))}" class="chart-link">
+  <a class="chart-link" href="${escape(source("light"))}"
+     data-light="${escape(source("light"))}" data-dark="${escape(source("dark"))}">
     <picture>
       <source srcset="${escape(source("dark"))}" media="(prefers-color-scheme: dark)">
       <img src="${escape(source("light"))}" width="${CHART_WIDTH}" height="${CHART_HEIGHT}"
@@ -123,10 +129,29 @@ function group(entry: GroupEntry, members: readonly PlaceEntry[], generatedAt: s
 </section>`
 }
 
+/**
+ * The dark palette, written once and applied in three places: to a dark system that has not been
+ * overridden, and to an explicit dark choice. A colour defined only inside a media query would
+ * never apply in the third state — an explicit choice against the system — which is the classic
+ * way a page ends up with one theme's text on the other theme's ground.
+ *
+ * `--card` is exactly the chart's own surface in each theme, so a chart has no visible edge on it.
+ */
+const DARK_TOKENS = `
+  color-scheme: dark;
+  --ground: #0f1318;
+  --card: #171c22;
+  --ink: #eaeef2;
+  --ink2: #aab4c0;
+  --muted: #78828e;
+  --line: #262d35;
+  --accent: #3987e5;
+  --flag: #d9a441;
+  --flag-ground: #26200f;`
+
 const STYLE = `
 :root {
-  color-scheme: light dark;
-  /* --card is exactly the chart's own light surface, so a chart has no visible edge on its card. */
+  color-scheme: light;
   --ground: #f4f6f8;
   --card: #ffffff;
   --ink: #131820;
@@ -138,18 +163,13 @@ const STYLE = `
   --flag-ground: #fbf1e2;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --ground: #0f1318;
-    --card: #171c22;
-    --ink: #eaeef2;
-    --ink2: #aab4c0;
-    --muted: #78828e;
-    --line: #262d35;
-    --accent: #3987e5;
-    --flag: #d9a441;
-    --flag-ground: #26200f;
+  :root:not([data-theme="light"]) {${DARK_TOKENS}
   }
 }
+:root[data-theme="dark"] {${DARK_TOKENS}
+}
+:root[data-theme="light"] { color-scheme: light; }
+
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -168,7 +188,7 @@ h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
 }
 .bar-inner {
   max-width: 1180px; margin: 0 auto; padding: 0.75rem 1.25rem;
-  display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
 }
 .brand { font-size: 1rem; font-weight: 640; margin: 0; }
 .brand a { text-decoration: none; }
@@ -181,19 +201,29 @@ h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
   background: var(--card); color: var(--ink); min-width: 12ch;
 }
 
+/* Three states, not two: "Auto" has to be reachable again once it has been left. */
+.theme { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--card); }
+.theme button {
+  font: inherit; font-size: 0.72rem; letter-spacing: 0.01em;
+  padding: 0.28rem 0.55rem; border: 0; background: transparent;
+  color: var(--ink2); cursor: pointer;
+}
+.theme button + button { border-left: 1px solid var(--line); }
+.theme button:hover { color: var(--ink); }
+.theme button[aria-pressed="true"] { background: var(--line); color: var(--ink); font-weight: 600; }
+
 main { max-width: 1180px; margin: 0 auto; padding: 2.25rem 1.25rem 5rem; }
 .lede { color: var(--ink2); max-width: 62ch; margin: 0.35rem 0 0; }
 .intro { margin: 0 0 2.5rem; }
 .intro h1 { font-size: 1.6rem; margin: 0; }
 
-.group { margin: 0 0 3.5rem; }
+.group { margin: 0 0 3.5rem; scroll-margin-top: 4.5rem; }
 .group-head { margin: 0 0 1rem; padding-top: 0.5rem; }
 .group-head h2 { font-size: 1.15rem; margin: 0; }
 .group-head h2 a, .place h3 a { text-decoration: none; }
 .group-head h2 a:hover, .place h3 a:hover { text-decoration: underline; }
 
 .place { margin: 2.5rem 0 0; scroll-margin-top: 4.5rem; }
-.group { scroll-margin-top: 4.5rem; }
 .place h3 { font-size: 1.02rem; margin: 0; }
 .facts { margin: 0.2rem 0 0; color: var(--ink2); font-size: 0.85rem; }
 .facts .dot { color: var(--muted); margin: 0 0.45rem; }
@@ -244,27 +274,88 @@ footer a { color: var(--ink2); }
 `
 
 /**
- * The filter, and the only script on the page. Everything above works without it; this narrows a
- * long list, so it is emitted only where the list is long enough to need narrowing.
+ * Applied before the first paint, so an overridden theme does not arrive as a flash of the other
+ * one. Everything else the page needs runs at the end; this is the only thing that cannot wait.
  */
-const FILTER_SCRIPT = `
+const HEAD_SCRIPT = `
 (function () {
-  var box = document.getElementById("filter");
-  if (!box) return;
-  box.classList.remove("hidden");
-  box.addEventListener("input", function () {
-    var needle = box.value.trim().toLowerCase();
-    document.querySelectorAll(".place").forEach(function (section) {
-      var match = !needle || (section.dataset.name || "").indexOf(needle) !== -1;
-      section.classList.toggle("hidden", !match);
-    });
-    document.querySelectorAll(".group").forEach(function (section) {
-      var any = section.querySelector(".place:not(.hidden)");
-      section.classList.toggle("hidden", !any);
-    });
-  });
+  try {
+    var choice = localStorage.getItem("theme");
+    if (choice === "light" || choice === "dark") document.documentElement.dataset.theme = choice;
+  } catch (error) {
+    /* A browser that refuses storage still gets the system's theme, which is the default anyway. */
+  }
 })();
 `
+
+function bodyScript(filter: boolean) {
+  return `
+(function () {
+  var root = document.documentElement;
+  var control = document.getElementById("theme");
+  var system = window.matchMedia("(prefers-color-scheme: dark)");
+
+  function stored() {
+    try {
+      var choice = localStorage.getItem("theme");
+      return choice === "light" || choice === "dark" ? choice : "auto";
+    } catch (error) { return "auto"; }
+  }
+
+  function apply(choice) {
+    if (choice === "auto") delete root.dataset.theme; else root.dataset.theme = choice;
+    var shown = choice === "auto" ? (system.matches ? "dark" : "light") : choice;
+
+    // <picture> resolves by media query, so the switch is made by changing the query itself rather
+    // than by touching src: "all" always matches and the dark source wins, "not all" never matches
+    // and the img's own light src wins. Only the image on the screen is ever fetched.
+    var media = choice === "auto" ? "(prefers-color-scheme: dark)" : (choice === "dark" ? "all" : "not all");
+    document.querySelectorAll("picture > source").forEach(function (source) { source.media = media; });
+
+    // The full-size link has to open the chart that is on the screen, not the other one.
+    document.querySelectorAll("a.chart-link").forEach(function (link) { link.href = link.dataset[shown]; });
+
+    if (control) {
+      control.querySelectorAll("button").forEach(function (button) {
+        button.setAttribute("aria-pressed", String(button.dataset.choice === choice));
+      });
+    }
+  }
+
+  if (control) {
+    control.hidden = false;
+    control.addEventListener("click", function (event) {
+      var button = event.target.closest("button[data-choice]");
+      if (!button) return;
+      var choice = button.dataset.choice;
+      try {
+        if (choice === "auto") localStorage.removeItem("theme"); else localStorage.setItem("theme", choice);
+      } catch (error) { /* the choice still holds for this page */ }
+      apply(choice);
+    });
+  }
+
+  // The system theme can change while the page is open, and in "auto" that has to be followed.
+  system.addEventListener("change", function () { if (stored() === "auto") apply("auto"); });
+  apply(stored());
+${filter ? `
+  var box = document.getElementById("filter");
+  if (box) {
+    box.classList.remove("hidden");
+    box.addEventListener("input", function () {
+      var needle = box.value.trim().toLowerCase();
+      document.querySelectorAll(".place").forEach(function (section) {
+        var match = !needle || (section.dataset.name || "").indexOf(needle) !== -1;
+        section.classList.toggle("hidden", !match);
+      });
+      document.querySelectorAll(".group").forEach(function (section) {
+        section.classList.toggle("hidden", !section.querySelector(".place:not(.hidden)"));
+      });
+    });
+  }
+` : ""}})();
+`
+}
 
 export function renderPage(manifest: Manifest): string {
   const priority: Priority = { first: true }
@@ -292,8 +383,13 @@ export function renderPage(manifest: Manifest): string {
   }
 
   const filter = manifest.places.length >= FILTER_THRESHOLD
-    ? `<input id="filter" class="filter hidden" type="search" placeholder="Filter places" aria-label="Filter places">`
-    : ""
+  // Hidden until the script takes it over: without scripting neither control can do anything, and
+  // a switch that does nothing is worse than no switch.
+  const theme = `<div class="theme" id="theme" role="group" aria-label="Colour theme" hidden>${
+    [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]]
+      .map(([choice, label]) => `<button type="button" data-choice="${choice}" aria-pressed="false">${label}</button>`)
+      .join("")
+  }</div>`
 
   return `<!doctype html>
 <html lang="en">
@@ -304,13 +400,15 @@ export function renderPage(manifest: Manifest): string {
 <title>${escape(manifest.site.title)}</title>
 <meta name="description" content="${escape(manifest.site.tagline ?? `Point forecasts for ${manifest.places.length} places.`)}">
 <style>${STYLE}</style>
+<script>${HEAD_SCRIPT}</script>
 </head>
 <body>
 <div class="bar">
   <div class="bar-inner">
     <p class="brand"><a href="#top">${escape(manifest.site.title)}</a></p>
     <nav class="jump" aria-label="Sections">${jumps.join("")}</nav>
-    ${filter}
+    ${filter ? `<input id="filter" class="filter hidden" type="search" placeholder="Filter places" aria-label="Filter places">` : ""}
+    ${theme}
   </div>
 </div>
 <main id="top">
@@ -335,7 +433,7 @@ export function renderPage(manifest: Manifest): string {
      ${escape(manifest.renderer_commit)}. Published from
      <a href="https://github.com/ueisele/weather-cards">weather-cards</a>.</p>
 </footer>
-${filter ? `<script>${FILTER_SCRIPT}</script>` : ""}
+<script>${bodyScript(filter)}</script>
 </body>
 </html>
 `
