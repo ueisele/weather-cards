@@ -2,41 +2,110 @@
   "$comment": "The places this site publishes. Editing this file is the whole editorial surface: the next run adds what appeared here and prunes what left. A group is drawn as one places_comparison and holds at most four places, which is both the chart's own limit and the point where four lines stop being readable.",
 
   "site": {
-    "title": "Almanac",
+    "title": "Lomsdal-Visten Almanac",
     "tagline": "Point forecasts from three models, redrawn through the day."
   },
 
   "places": [
     {
-      "id": "lomsdal-visten",
-      "name": "Lomsdal-Visten",
-      "latitude": 65.498,
-      "longitude": 13.041,
-      "elevation_m": 883,
-      "note": "Plateau over Velfjord"
+      "id": "tverradalen",
+      "name": "Tverrådalen",
+      "latitude": 65.98636,
+      "longitude": 13.16289,
+      "elevation_m": 658,
+      "note": "High valley point at the northern start"
     },
     {
-      "id": "mosjoen",
-      "name": "Mosjøen",
-      "latitude": 65.836,
-      "longitude": 13.19,
-      "note": "Vefsna valley floor"
+      "id": "burrienvaerie",
+      "name": "Burrienvaerie",
+      "latitude": 65.69951,
+      "longitude": 12.90335,
+      "elevation_m": 764,
+      "note": "Mountain name-point used as a high-terrain proxy"
     },
     {
-      "id": "bronnoysund",
-      "name": "Brønnøysund",
-      "latitude": 65.474,
-      "longitude": 12.209,
-      "note": "Coast"
+      "id": "bona-hurtigbatkai",
+      "name": "Bønå hurtigbåtkai",
+      "latitude": 65.644575,
+      "longitude": 12.753716,
+      "note": "Fast-boat quay"
+    },
+    {
+      "id": "stigfjellet",
+      "name": "Stigfjellet",
+      "latitude": 65.6451,
+      "longitude": 12.85141,
+      "elevation_m": 716,
+      "note": "High mountain point east of Bønå"
+    },
+    {
+      "id": "eiterafjellet",
+      "name": "Eiteråfjellet",
+      "latitude": 65.64272,
+      "longitude": 13.20841,
+      "elevation_m": 687,
+      "note": "Name-point proxy; replace with the exact route GPX coordinate when available"
+    },
+    {
+      "id": "visttindan",
+      "name": "Visttindan",
+      "latitude": 65.54615,
+      "longitude": 13.04386,
+      "elevation_m": 1087,
+      "note": "High-elevation stress-test proxy; not assumed to lie on the track"
+    },
+    {
+      "id": "lomsdalen",
+      "name": "Lomsdalen",
+      "latitude": 65.44963,
+      "longitude": 12.84067,
+      "elevation_m": 200,
+      "note": "Interior valley point"
+    },
+    {
+      "id": "nedre-breivatnet",
+      "name": "Nedre Breivatnet",
+      "latitude": 65.42356,
+      "longitude": 12.87534,
+      "elevation_m": 286,
+      "note": "Optional lower-lake point for the descent and river section"
+    },
+    {
+      "id": "midtre-breivatnet",
+      "name": "Midtre Breivatnet",
+      "latitude": 65.39417,
+      "longitude": 12.86831,
+      "elevation_m": 487,
+      "note": "Higher Breivatnet lake point"
+    },
+    {
+      "id": "tosbotnet",
+      "name": "Tosbotnet",
+      "latitude": 65.32603,
+      "longitude": 12.95805,
+      "elevation_m": 6,
+      "note": "Low-elevation southern endpoint"
     }
   ],
 
   "groups": [
     {
-      "id": "helgeland",
-      "name": "Helgeland",
-      "note": "Plateau, valley and coast within forty kilometres — the comparison is mostly a reading of the terrain.",
-      "places": ["lomsdal-visten", "mosjoen", "bronnoysund"]
+      "id": "northern-section",
+      "name": "Northern section",
+      "note": "Northern start, mountain proxy, quay and next high point in the stated route sequence.",
+      "places": ["tverradalen", "burrienvaerie", "bona-hurtigbatkai", "stigfjellet"]
+    },
+    {
+      "id": "central-section",
+      "name": "Central section",
+      "note": "Two high-terrain proxies followed by the Lomsdalen valley point.",
+      "places": ["eiterafjellet", "visttindan", "lomsdalen"]
+    },
+    {
+      "id": "southern-section",
+      "name": "Southern section",
+      "note": "Lower and higher Breivatnet points followed by the southern endpoint.",
+      "places": ["nedre-breivatnet", "midtre-breivatnet", "tosbotnet"]
     }
   ]
 }
