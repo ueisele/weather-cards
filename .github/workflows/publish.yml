@@ -1,8 +1,18 @@
 # Redraw every chart and publish it.
 #
-# The cadence is the providers', not a preference: ICON-EU runs eight times a day, ECMWF IFS four,
-# and MET re-serves hourly but re-runs four times. Every three hours is the interval in which
-# something can actually have changed; :35 past leaves Open-Meteo time to have ingested the run.
+# **Asked hourly to be served three-hourly.** What the providers do would suggest every three hours:
+# ICON-EU runs eight times a day, ECMWF IFS four, MET re-serves hourly on four model runs. But
+# GitHub treats `schedule` on a public repository as a suggestion — measured over 2026-08-31, three
+# of eight slots fired at all, each 100 to 145 minutes late. Asking every hour is what makes the
+# delivered cadence land near the intended one, and it costs nothing: public repositories consume no
+# Actions minutes, three places spend about 290 of Open-Meteo's 10,000 daily calls, and MET's own
+# terms are met exactly, since its locationforecast updates about hourly.
+#
+# So this is not a claim that the weather changes hourly. It is a scheduler that drops most of what
+# it is given. If GitHub ever became reliable, or the job moved to a cron that runs, this should go
+# back to `35 */3 * * *`.
+#
+# :35 past leaves Open-Meteo time to have ingested a model run.
 #
 # **GitHub disables a scheduled workflow in a public repository after 60 days without repository
 # activity**, and workflow runs do not count as activity. If the site stops updating and nothing
@@ -13,7 +23,7 @@ name: publish
 
 on:
   schedule:
-    - cron: "35 */3 * * *"
+    - cron: "35 * * * *"
   # Editing the places, the renderer pin or the code republishes at once — that is the editing loop.
   push:
     branches: [main]

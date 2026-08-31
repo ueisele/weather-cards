@@ -2,7 +2,7 @@
 
 The charts behind a small weather site: for every place in [`places.json`](places.json), one chart
 per model and one with all models together, plus one chart per group comparing its places. A job
-redraws them every three hours and uploads them to a Cloudflare R2 bucket that serves them.
+redraws them through the day and uploads them to a Cloudflare R2 bucket that serves them.
 
 **This repository holds the site, not the renderer.** The charts are drawn by the point weather tool
 of the `web-research` plugin in [ueisele/dotfiles](https://gitlab.com/ueisele/dotfiles), pinned to a
@@ -150,7 +150,7 @@ for the same reason the group exists: the comparison chart shows Lomsdal-Visten 
 Mosjøen and Brønnøysund, and the map says why — plateau, valley floor, coast, inside forty-six
 kilometres.
 
-**A map changes when `places.json` changes, not every three hours** — so the image is fetched once
+**A map changes when `places.json` changes, not every run** — so the image is fetched once
 and then simply stays. The published bucket is the store: a key the previous manifest named is a key
 the bucket holds, so the run leaves it alone — not fetched, not written out, not re-uploaded — while
 the new manifest goes on naming it, which is what stops the prune from removing it. Exactly the
@@ -218,8 +218,8 @@ at its own directory. About two seconds and twelve megabytes.
 
 ## Publishing
 
-`.github/workflows/publish.yml` runs every three hours, on a push that touches the places or the
-code, and on demand. It needs five values in the repository's settings:
+`.github/workflows/publish.yml` runs hourly, on a push that touches the places or the code, and on
+demand. It needs five values in the repository's settings:
 
 | Name | Kind | Why |
 | --- | --- | --- |
@@ -233,10 +233,18 @@ The token is scoped to the one bucket and can do nothing else. It is the only re
 separate repository rather than a directory in the dotfiles: a write credential belongs next to the
 smallest possible change surface, and dotfiles' is every module it carries.
 
-> **The one trap.** GitHub disables a scheduled workflow in a public repository after 60 days
-> without repository activity, and workflow runs do not count. If the site stops updating and
+> **Hourly is a workaround, not a belief about the weather.** Three hours is what the model runs
+> would suggest. GitHub treats `schedule` on a public repository as a suggestion: measured across
+> 2026-08-31, three of eight slots fired, each 100 to 145 minutes late. Asking hourly is what makes
+> the delivered cadence land near the intended one. It costs nothing — public repositories consume
+> no Actions minutes, three places spend about 290 of Open-Meteo's 10,000 daily calls, and MET's
+> terms are met exactly, since its locationforecast updates about hourly.
+>
+> **And the trap behind it.** GitHub disables a scheduled workflow in a public repository after 60
+> days without repository activity, and workflow runs do not count. If the site stops updating and
 > nothing else is wrong, look there first. The job is a plain `bun` command with everything in the
-> environment, so moving the schedule to something with a real cron is a re-host, not a rewrite.
+> environment, so moving the schedule to something with a real cron — Scaleway Serverless Jobs is
+> the one this account's rules point at — is a re-host, not a rewrite.
 
 ## Sources and terms
 
