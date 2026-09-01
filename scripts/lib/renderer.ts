@@ -86,17 +86,21 @@ export type Renderer = {
   nodeDnsResolver: unknown
   secureIds: unknown
   systemClock: { now(): Date }
+  /** The chart's own rasteriser, so the app icon is drawn with what draws the charts. */
+  Canvas: new (width: number, height: number, background: readonly [number, number, number]) => any
+  encodePng: (canvas: any) => Uint8Array
 }
 
 export async function loadRenderer(): Promise<Renderer> {
   const root = await rendererDirectory()
   const at = (path: string) => import(join(root, path))
-  const [core, store, tree, direct, dependencies] = await Promise.all([
+  const [core, store, tree, direct, dependencies, canvas] = await Promise.all([
     at("lib/web-research/tools/weather-core.ts"),
     at("lib/web-research/artifacts/store.ts"),
     at("lib/web-research/artifacts/session-tree.ts"),
     at("lib/web-research/runtime/direct-download.ts"),
     at("lib/web-research/runtime/dependencies.ts"),
+    at("lib/web-research/tools/weather-canvas.ts"),
   ])
   return {
     executeWeather: core.executeWeather,
@@ -107,5 +111,7 @@ export async function loadRenderer(): Promise<Renderer> {
     nodeDnsResolver: dependencies.nodeDnsResolver,
     secureIds: dependencies.secureIds,
     systemClock: dependencies.systemClock,
+    Canvas: canvas.Canvas,
+    encodePng: canvas.encodePng,
   }
 }

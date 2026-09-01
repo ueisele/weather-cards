@@ -15,6 +15,7 @@
  * So the worker is stable and cacheable, and the page — never more than five minutes old — sends
  * it the exact list of URLs that belong in the cache.
  */
+import { ICON_SIZES, iconKey } from "./icon"
 import { MANIFEST_KEY, type Manifest } from "./manifest"
 
 export const WORKER_KEY = "sw.js"
@@ -28,10 +29,11 @@ export const WEBMANIFEST_KEY = "manifest.webmanifest"
  * published and 404 the whole precache. The page builds its `?v=` from the entry; so does this.
  */
 export function offlineUrls(manifest: Manifest): readonly string[] {
+  // The icons are part of what an installed copy needs and never change, so they carry no token.
   // The page is not in this list. A navigation asks for `/`, not for `index.html`, and the worker
   // caches the document under the URL the browser actually used — listing it here as well stored
   // the same 56 KB twice under two spellings.
-  const urls = new Set<string>([MANIFEST_KEY])
+  const urls = new Set<string>([MANIFEST_KEY, WEBMANIFEST_KEY, ...ICON_SIZES.map(iconKey)])
   const add = (key: string, version: string) => urls.add(`${key}?v=${encodeURIComponent(version)}`)
   // A map key already carries a content hash, and the page links it bare. Adding a token here
   // would invent a URL that was never published — and the precache would 404 on every map.
@@ -57,9 +59,16 @@ export function renderWebmanifest(manifest: Manifest): string {
     start_url: ".",
     scope: ".",
     display: "standalone",
-    // The charts decide their own theme from the system, so the shell must not assert one.
-    background_color: "#ffffff",
-    theme_color: "#ffffff",
+    icons: ICON_SIZES.map((size) => ({
+      src: iconKey(size), sizes: `${size}x${size}`, type: "image/png",
+      // `any maskable` because the icon is a full square with nothing near an edge: a launcher may
+      // crop it to whatever shape it likes without losing the curve.
+      purpose: "any maskable",
+    })),
+    // The manifest holds one colour and the page has two; these are the light values, and the page
+    // carries a `theme-color` per scheme, which is what a browser reads first.
+    background_color: "#f4f6f8",
+    theme_color: "#f4f6f8",
   }, undefined, 2)
 }
 

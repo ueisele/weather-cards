@@ -27,6 +27,7 @@ import {
   type Card, type GroupEntry, type Manifest, type MapCard, type PlaceEntry,
 } from "./lib/manifest"
 import { renderPage } from "./lib/page"
+import { ICON_SIZES, iconKey, renderIcon } from "./lib/icon"
 import { renderWebmanifest, WEBMANIFEST_KEY, WORKER_KEY, WORKER_SOURCE } from "./lib/offline"
 
 /**
@@ -373,6 +374,9 @@ await Bun.write(join(out, MANIFEST_KEY), JSON.stringify(manifest, null, 2) + "\n
 await Bun.write(join(out, PAGE_KEY), renderPage(manifest))
 await Bun.write(join(out, WORKER_KEY), WORKER_SOURCE)
 await Bun.write(join(out, WEBMANIFEST_KEY), renderWebmanifest(manifest) + "\n")
+for (const size of ICON_SIZES) {
+  await Bun.write(join(out, iconKey(size)), renderIcon(size, renderer.Canvas, renderer.encodePng))
+}
 
 console.log(`\n${drawn} images drawn, ${carried} entries carried over, ${lost} left out.`)
 console.log(`Written to ${out}. Publish it with: bun run deploy`)

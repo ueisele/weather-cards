@@ -15,6 +15,7 @@
  */
 import type { Theme } from "./config"
 import type { Card, GroupEntry, Manifest, MapCard, PlaceEntry } from "./manifest"
+import { iconKey } from "./icon"
 import { offlineUrls, WEBMANIFEST_KEY, WORKER_KEY } from "./offline"
 
 /** The chart canvas. Given on every image so the page reserves the space before one arrives. */
@@ -727,6 +728,12 @@ export function renderPage(manifest: Manifest): string {
 <title>${escape(manifest.site.title)}</title>
 <meta name="description" content="${escape(manifest.site.tagline ?? `Point forecasts for ${manifest.places.length} places.`)}">
 <link rel="manifest" href="${WEBMANIFEST_KEY}">
+<link rel="apple-touch-icon" href="${iconKey(180)}">
+<link rel="icon" href="${iconKey(192)}" type="image/png" sizes="192x192">
+<!-- The full title is cut off under a home-screen icon; this is what fits there. -->
+<meta name="apple-mobile-web-app-title" content="Almanac">
+<meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1318" media="(prefers-color-scheme: dark)">
 <style>${STYLE}</style>
 <script>${HEAD_SCRIPT}</script>
 </head>
