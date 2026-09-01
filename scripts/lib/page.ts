@@ -286,20 +286,24 @@ h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
   font: inherit; display: inline-flex; padding: 0.3rem 0.42rem; border: 0;
   background: transparent; color: var(--ink2); cursor: pointer;
 }
-.theme button[aria-pressed="true"] { color: var(--ink); background: var(--card); }
 .theme button + button { border-left: 1px solid var(--line); }
 .theme button:hover { color: var(--ink); }
 /* The offline control borrows the theme switch's shape so the bar keeps one vocabulary. It is an
    icon and, once it holds a copy, how old that copy is — no word, because the bar has no room for
    one and the mark changes shape between the two states rather than only shade. */
-.offline { display: inline-flex; align-items: center; flex: 0 0 auto; }
+.offline {
+  display: inline-flex; align-items: center; flex: 0 0 auto;
+  border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--card);
+}
 .offline button {
   font: inherit; font-size: 0.72rem; font-variant-numeric: tabular-nums;
   display: inline-flex; align-items: center; gap: 0.32rem;
-  padding: 0.3rem 0.5rem; border: 1px solid var(--line); border-radius: 6px;
-  background: var(--card); color: var(--ink2); cursor: pointer;
+  padding: 0.3rem 0.5rem; border: 0; background: transparent;
+  color: var(--ink2); cursor: pointer;
 }
-.offline button[aria-pressed="true"] { color: var(--ink); border-color: var(--ink2); }
+/* Exactly the theme switch's active segment, and for the same reason: these are two controls of
+   one kind sitting side by side, so "on" has to look like the same word in both. */
+.offline button[aria-pressed="true"] { background: var(--line); color: var(--ink); font-weight: 600; }
 /* An inline svg sits on the text baseline and drags descender space in with it, which made this
    button 5 px taller than the theme switch beside it and pushed the figure below the icon's
    middle. A flex box around it has no baseline to sit on. */
