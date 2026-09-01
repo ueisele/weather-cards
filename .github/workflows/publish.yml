@@ -12,30 +12,28 @@
 # commands this file does; only what decides *when* has changed. The minute is unchanged too — :35
 # leaves Open-Meteo time to have ingested a model run.
 #
-# What is left here is the editing loop: a change to places.json, the renderer pin or the scripts
-# publishes at once rather than waiting for the next hour. And workflow_dispatch, for a publish on
-# demand from anywhere with a browser.
+# **The push trigger went with it**, and the reason is the same rollback the schedule move exposed:
+# the timer publishes from a checkout on the box, and it pulls before it draws. An edit therefore
+# reaches the site within the hour on its own. A second automatic publisher would only have bought
+# seconds of latency, in exchange for two writers racing each other's prunes and a second credential
+# path to the bucket. `just publish` covers the impatient case, from the box or a laptop.
+#
+# What is left is `workflow_dispatch`, which never fires by itself and so races nothing. It is the
+# button for the case that move actually costs you: the box unreachable, and the charts going stale.
+# A dispatch-only workflow is also not subject to the 60-day disable, which applies to scheduled
+# ones.
 
 name: publish
 
 on:
-  # Editing the places, the renderer pin or the code republishes at once — that is the editing loop.
-  push:
-    branches: [main]
-    paths:
-      - places.json
-      - renderer.json
-      - scripts/**
-      - .github/workflows/publish.yml
   workflow_dispatch:
 
 # One publish at a time. Two runs would interleave their uploads and their prunes, and the prune of
 # the older one would delete objects the newer one had just written.
 #
-# Note what this group does *not* reach: the timer on forge is a second publisher and nothing
-# coordinates the two. The window is one minute wide — an edit landing exactly on :35 — and it only
-# bites when the edit changes *which* places exist, because otherwise both runs write the same
-# manifest and the prune finds nothing stale to remove.
+# Kept although nothing here fires on its own any more: two people pressing the button, or a press
+# landing on the timer's :35, are the same interleaving. The group cannot reach the timer on forge —
+# so if you dispatch this while the box is up, you are the coordination.
 concurrency:
   group: publish
   cancel-in-progress: false
