@@ -18,7 +18,7 @@ import type { Card, GroupEntry, Manifest, MapCard, PlaceEntry } from "./manifest
 
 /** The chart canvas. Given on every image so the page reserves the space before one arrives. */
 const CHART_WIDTH = 1920
-const CHART_HEIGHT = 1300
+const CHART_HEIGHT = 1510
 
 /** Below this many places a filter box is furniture; above it, it is the only way to find one. */
 const FILTER_THRESHOLD = 8

@@ -18,7 +18,7 @@ import type { Place } from "./config"
 
 /** The charts' own canvas. The map matches it so the page keeps one rhythm down the column. */
 export const MAP_WIDTH = 1920
-export const MAP_HEIGHT = 1300
+export const MAP_HEIGHT = 1510
 
 /**
  * Kartverket's topographic WMS, NLOD — the same data `trails` draws its maps from, so the licence

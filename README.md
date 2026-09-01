@@ -27,7 +27,7 @@ For each **place**, eight images — four charts in two themes:
 For each **group**, one more chart: its places compared under a single model, which in mountains is
 mostly a reading of the terrain rather than of the weather.
 
-Every chart is 1920 × 1300 and carries its own legend, its resolved elevation and the model it came
+Every chart is 1920 × 1510 and carries its own legend, its resolved elevation and the model it came
 from. **All times are UTC** — the tool has no timezone and the page does not imply one.
 
 ## Running it
@@ -168,7 +168,7 @@ same job.
 
 [Kartverket](https://kartverket.no/)'s WMS renders an arbitrary extent at an arbitrary size, and it
 renders **for** that size: the label density and the detail are chosen for the pixels asked for. So
-the map is requested at **1920 × 1300, the charts' own canvas** — a real map at that width, not a
+the map is requested at **1920 × 1510, the charts' own canvas** — a real map at that width, not a
 768-pixel one stretched to fit — and it sits in the column at the same width as everything else.
 
 Three things follow from it being one image rather than nine:
