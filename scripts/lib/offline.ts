@@ -16,7 +16,14 @@
  * it the exact list of URLs that belong in the cache.
  */
 import { ICON_SIZES, iconKey } from "./icon"
-import { MANIFEST_KEY, type Manifest } from "./manifest"
+import { MANIFEST_KEY, versionToken, type Manifest } from "./manifest"
+
+/** The icons live at a stable path, and Cloudflare edge-caches `.png` by extension for four hours.
+ *  Without a token a redesigned icon reaches nobody until that expires — measured: the edge served
+ *  the previous one for 811 seconds after a deploy that had replaced it. */
+export function iconUrl(manifest: Manifest, size: number) {
+  return `${iconKey(size)}?v=${encodeURIComponent(versionToken(new Date(manifest.generated_at)))}`
+}
 
 export const WORKER_KEY = "sw.js"
 export const WEBMANIFEST_KEY = "manifest.webmanifest"
@@ -29,11 +36,12 @@ export const WEBMANIFEST_KEY = "manifest.webmanifest"
  * published and 404 the whole precache. The page builds its `?v=` from the entry; so does this.
  */
 export function offlineUrls(manifest: Manifest): readonly string[] {
-  // The icons are part of what an installed copy needs and never change, so they carry no token.
+  // The icons are part of what an installed copy needs.
   // The page is not in this list. A navigation asks for `/`, not for `index.html`, and the worker
   // caches the document under the URL the browser actually used — listing it here as well stored
   // the same 56 KB twice under two spellings.
-  const urls = new Set<string>([MANIFEST_KEY, WEBMANIFEST_KEY, ...ICON_SIZES.map(iconKey)])
+  const urls = new Set<string>([MANIFEST_KEY, WEBMANIFEST_KEY,
+    ...ICON_SIZES.map((size) => iconUrl(manifest, size))])
   const add = (key: string, version: string) => urls.add(`${key}?v=${encodeURIComponent(version)}`)
   // A map key already carries a content hash, and the page links it bare. Adding a token here
   // would invent a URL that was never published — and the precache would 404 on every map.
@@ -60,7 +68,7 @@ export function renderWebmanifest(manifest: Manifest): string {
     scope: ".",
     display: "standalone",
     icons: ICON_SIZES.map((size) => ({
-      src: iconKey(size), sizes: `${size}x${size}`, type: "image/png",
+      src: iconUrl(manifest, size), sizes: `${size}x${size}`, type: "image/png",
       // `any maskable` because the icon is a full square with nothing near an edge: a launcher may
       // crop it to whatever shape it likes without losing the curve.
       purpose: "any maskable",
