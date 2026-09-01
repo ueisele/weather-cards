@@ -33,6 +33,7 @@ const ICONS = {
   auto: ICON(`<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor" stroke="none"/>`),
   light: ICON(`<circle cx="12" cy="12" r="4.2"/><path d="M12 3.2v1.9M12 18.9v1.9M4.6 12H2.7M21.3 12h-1.9M6.8 6.8L5.4 5.4M18.6 18.6l-1.4-1.4M6.8 17.2l-1.4 1.4M18.6 5.4l-1.4 1.4"/>`),
   dark: ICON(`<path d="M20 14.2A8.2 8.2 0 0 1 9.8 4a8.4 8.4 0 1 0 10.2 10.2z"/>`),
+  top: ICON(`<path d="M12 19V6m0 0l-5 5M12 6l5 5"/>`),
   keep: ICON(`<circle cx="12" cy="12" r="9"/><path d="M12 7v8m0 0l-3.2-3.2M12 15l3.2-3.2"/>`),
   kept: ICON(`<circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.6"/>`),
 } as const
@@ -270,6 +271,8 @@ h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
   padding: 0.4rem 0.8rem; margin-right: 0.4rem;
   border: 1px solid var(--line); border-radius: 999px; background: var(--card);
 }
+/* The same chip, holding a mark instead of a word; the flex box keeps the svg off the baseline. */
+.jump a.to-top { display: inline-flex; align-items: center; padding: 0.4rem 0.62rem; }
 .jump a:hover, .jump a:focus-visible { color: var(--accent); }
 .filter {
   font: inherit; font-size: 0.82rem; padding: 0.3rem 0.6rem;
@@ -568,7 +571,11 @@ export function renderPage(manifest: Manifest): string {
   const byId = new Map(manifest.places.map((entry) => [entry.id, entry]))
   const placed = new Set<string>()
   const sections: string[] = []
-  const jumps: string[] = []
+  // A chip like the others and inside the same scroll area: it leaves the screen with them, which
+  // is what makes it read as the first stop in a list rather than a control bolted to the edge.
+  const jumps: string[] = [
+    `<a href="#top" class="to-top" aria-label="Back to the top">${ICONS.top}</a>`,
+  ]
 
   for (const entry of manifest.groups) {
     const members = entry.place_ids
