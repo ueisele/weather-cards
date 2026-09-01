@@ -148,11 +148,12 @@ function mapFigure(card: MapCard, caption: string) {
   // the character count, which is coarse and enough, because the only question is whether two
   // rectangles touch.
   const GAP = 24, LINE = 32, EM = 13.5
-  // **Where the baseline goes.** Firefox reports the font's layout box for SVG text, not its ink:
-  // ascent 24.6, descent 6.7 either side of the baseline. Centring on that box, or on cap height,
-  // both leave the word looking high — the box reserves room for accents most words do not use.
-  // Three units lower reads as centred against the dot, judged on a magnified render.
-  const BASE = 13
+  // **Where the baseline goes.** Firefox reports the font's layout box for SVG text and not its
+  // ink — ascent 24.6, descent 6.7, identical for "HTVS" and "Hgjpå" — so neither that box nor cap
+  // height settles it and the answer is a judgement. Judged on a phone at the size it is actually
+  // read: a unit above the geometric centre. A magnified render said three units below, and was
+  // wrong; the enlargement flatters the descenders that the eye discounts at real size.
+  const BASE = 9
   // **The dots are obstacles too.** A label cleared of every other label can still be run through
   // by a neighbour's dot, which is what happened to "Bønå hurtigbåtkai": Stigfjellet's marker sat
   // in the middle of the word. The dot is r=13 with a 4-unit stroke, so 17 with a little air.
