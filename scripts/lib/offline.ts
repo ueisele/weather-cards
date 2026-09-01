@@ -128,17 +128,24 @@ async function evict(urls) {
  *  phone on a weak signal handles worse than a queue, and nothing is waiting on the result. */
 async function keepAll(urls) {
   var cache = await caches.open(CACHE);
+  var got = 0;
   for (var i = 0; i < urls.length; i++) {
     try {
       var already = await cache.match(urls[i]);
       if (!already) await cache.add(new Request(urls[i], { cache: "reload" }));
+      got++;
     } catch (error) {
       // One image that will not come is not a reason to abandon the other ninety-three.
     }
     await report({ type: "progress", done: i + 1, total: urls.length });
   }
-  await evict(urls);
-  await report({ type: "kept", total: urls.length });
+  // **Only evict once the new run can stand on its own.** A refresh that reached almost nothing —
+  // the signal went while it ran — must leave the previous run alone: an older forecast is worth
+  // having and an empty cache is not. The cost is that a half-failed refresh leaves two runs in
+  // the cache until the next good one, which is bounded and the cheaper mistake.
+  var complete = got >= urls.length * 0.8;
+  if (complete) await evict(urls);
+  await report({ type: "kept", total: urls.length, got: got, complete: complete });
 }
 
 async function status(urls) {
@@ -161,10 +168,13 @@ self.addEventListener("message", function (event) {
       return report({ type: "status", keeping: false, have: 0, total: urls.length });
     }));
   } else if (data.type === "refresh") {
-    // Every load. Evicting the previous run happens whether or not the switch is on, so an
-    // opportunistic cache cannot grow without bound; the full fetch happens only if it is on.
-    event.waitUntil(evict(urls).then(function () {
-      return keeping().then(function (on) { return on ? keepAll(urls) : status(urls); });
+    // Every load, and the order matters. With the switch on, \`keepAll\` fetches the new run first
+    // and evicts afterwards, so a download that dies halfway leaves the previous run intact rather
+    // than nothing at all — you keep an older forecast instead of losing the page. Evicting up
+    // front is only for the switch-off case, where there is no refetch to protect and the
+    // opportunistic cache still has to stay bounded.
+    event.waitUntil(keeping().then(function (on) {
+      return on ? keepAll(urls) : evict(urls).then(function () { return status(urls); });
     }));
   }
 });
