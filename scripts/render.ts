@@ -27,6 +27,7 @@ import {
   type Card, type GroupEntry, type Manifest, type MapCard, type PlaceEntry,
 } from "./lib/manifest"
 import { renderPage } from "./lib/page"
+import { renderWebmanifest, WEBMANIFEST_KEY, WORKER_KEY, WORKER_SOURCE } from "./lib/offline"
 
 /**
  * ICON's horizon, the longest of the three. The other two end sooner, and the chart draws the grey
@@ -370,6 +371,8 @@ const manifest: Manifest = {
 }
 await Bun.write(join(out, MANIFEST_KEY), JSON.stringify(manifest, null, 2) + "\n")
 await Bun.write(join(out, PAGE_KEY), renderPage(manifest))
+await Bun.write(join(out, WORKER_KEY), WORKER_SOURCE)
+await Bun.write(join(out, WEBMANIFEST_KEY), renderWebmanifest(manifest) + "\n")
 
 console.log(`\n${drawn} images drawn, ${carried} entries carried over, ${lost} left out.`)
 console.log(`Written to ${out}. Publish it with: bun run deploy`)

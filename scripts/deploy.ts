@@ -24,6 +24,7 @@
 import { readdir } from "node:fs/promises"
 import { extname, join, relative, resolve } from "node:path"
 import { isManifest, MANIFEST_KEY, PAGE_KEY, referencedKeys } from "./lib/manifest"
+import { WEBMANIFEST_KEY, WORKER_KEY } from "./lib/offline"
 import { REPOSITORY_ROOT } from "./lib/renderer"
 
 const TYPES: Record<string, string> = {
@@ -31,6 +32,10 @@ const TYPES: Record<string, string> = {
   ".svg": "image/svg+xml; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".html": "text/html; charset=utf-8",
+  // A service worker registers only when it arrives as JavaScript: served as octet-stream the
+  // browser refuses with a bare SecurityError, and the page looks merely worker-less. Measured.
+  ".js": "text/javascript; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
 }
 
 /** Everything the site is made of lives under one of these; the prune looks nowhere else. */
@@ -85,7 +90,11 @@ const present = new Set(await walk(out))
 // already in the bucket and not on disk; an experiment left in out/ is named by nothing and stays.
 const images = [...referenced].filter((key) => present.has(key)).sort()
 const carried = [...referenced].filter((key) => !present.has(key))
-const ignored = [...present].filter((key) => !referenced.has(key) && key !== MANIFEST_KEY && key !== PAGE_KEY)
+// The four the build always writes and this script always uploads. They are not in the manifest —
+// it names images — so without naming them here they would be reported as left alone while being
+// uploaded two lines further down.
+const ALWAYS = new Set<string>([MANIFEST_KEY, PAGE_KEY, WORKER_KEY, WEBMANIFEST_KEY])
+const ignored = [...present].filter((key) => !referenced.has(key) && !ALWAYS.has(key))
 
 console.log(`${manifest.generated_at} -> ${bucket}`)
 
@@ -124,9 +133,11 @@ for (const key of images) {
 }
 // The manifest and the page last, and in that order: the page is what a visitor lands on, so it is
 // the final thing to change, and the next run reads the manifest to know what it may keep.
+await put(WORKER_KEY, await Bun.file(join(out, WORKER_KEY)).text())
+await put(WEBMANIFEST_KEY, await Bun.file(join(out, WEBMANIFEST_KEY)).text())
 await put(MANIFEST_KEY, await Bun.file(join(out, MANIFEST_KEY)).text())
 await put(PAGE_KEY, await Bun.file(join(out, PAGE_KEY)).text())
-console.log(`  ${dry ? "would upload" : "uploaded"} ${uploaded + 2} objects${
+console.log(`  ${dry ? "would upload" : "uploaded"} ${uploaded + 4} objects${
   skipped > 0 ? `, ${skipped} map tile(s) already identical` : ""}${
   carried.length > 0 ? `, ${carried.length} kept from an earlier run` : ""}${
   ignored.length > 0 ? `\n  ${ignored.length} file(s) in out/ the manifest does not name, left alone (${ignored.slice(0, 3).join(", ")}${ignored.length > 3 ? ", …" : ""})` : ""}`)

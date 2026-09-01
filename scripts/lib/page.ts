@@ -15,6 +15,7 @@
  */
 import type { Theme } from "./config"
 import type { Card, GroupEntry, Manifest, MapCard, PlaceEntry } from "./manifest"
+import { offlineUrls, WEBMANIFEST_KEY, WORKER_KEY } from "./offline"
 
 /** The chart canvas. Given on every image so the page reserves the space before one arrives. */
 const CHART_WIDTH = 1920
@@ -251,6 +252,16 @@ h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
 }
 .theme button + button { border-left: 1px solid var(--line); }
 .theme button:hover { color: var(--ink); }
+/* The offline control borrows the theme switch's shape so the bar keeps one vocabulary. */
+.offline { display: inline-flex; align-items: center; gap: 0.45rem; }
+.offline button {
+  font: inherit; font-size: 0.72rem; letter-spacing: 0.01em;
+  padding: 0.28rem 0.55rem; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--card); color: var(--ink2); cursor: pointer;
+}
+.offline button:hover { color: var(--ink); }
+.offline button[aria-pressed="true"] { color: var(--ink); border-color: var(--ink2); }
+.offline-note { font-size: 0.68rem; color: var(--ink2); font-variant-numeric: tabular-nums; }
 .theme button[aria-pressed="true"] { background: var(--line); color: var(--ink); font-weight: 600; }
 
 main { max-width: 1180px; margin: 0 auto; padding: 2.25rem 1.25rem 5rem; }
@@ -412,6 +423,79 @@ ${filter ? `
 `
 }
 
+/**
+ * Registration, the keep switch, and the age line.
+ *
+ * The worker is registered unconditionally: opening offline at all is the part that is broken
+ * without it, and it costs nothing — the document and whatever images were actually looked at.
+ * Keeping the whole almanac is the switch, because a run is about 18 MB across both themes and
+ * there is a new one every hour.
+ */
+function offlineScript(manifest: Manifest): string {
+  return `
+(function () {
+  if (!("serviceWorker" in navigator)) return;
+  var URLS = ${JSON.stringify(offlineUrls(manifest))};
+  var GENERATED = ${JSON.stringify(manifest.generated_at)};
+  var box = document.getElementById("offline");
+  var button = document.getElementById("keep");
+  var note = document.getElementById("offline-note");
+  if (!box || !button || !note) return;
+
+  function say(text) { note.textContent = text; }
+  function post(message) {
+    navigator.serviceWorker.ready.then(function (registration) {
+      var worker = navigator.serviceWorker.controller || registration.active;
+      if (worker) worker.postMessage(message);
+    });
+  }
+
+  // Shown only once the worker exists to give it meaning.
+  navigator.serviceWorker.register(${JSON.stringify(WORKER_KEY)}).then(function () {
+    return navigator.serviceWorker.ready;
+  }).then(function () {
+    box.hidden = false;
+    // Every load: the worker drops what this run no longer references, and refetches the run in
+    // the background if the switch is on. The page does not wait for either.
+    post({ type: "refresh", urls: URLS });
+  }).catch(function () {
+    /* No worker, no offline. The page itself is unaffected, so say nothing. */
+  });
+
+  button.addEventListener("click", function () {
+    var on = button.getAttribute("aria-pressed") === "true";
+    button.setAttribute("aria-pressed", String(!on));
+    say(on ? "" : "keeping\u2026");
+    post({ type: on ? "forget" : "keep", urls: URLS });
+  });
+
+  navigator.serviceWorker.addEventListener("message", function (event) {
+    var data = event.data || {};
+    if (data.type === "status") {
+      button.setAttribute("aria-pressed", String(data.keeping));
+      if (!data.keeping) say(data.have > 1 ? data.have + " of " + data.total + " cached" : "");
+      else say(data.have >= data.total ? "kept" : "keeping\u2026");
+    } else if (data.type === "progress") {
+      if (data.done % 5 === 0 || data.done === data.total) {
+        say("keeping " + data.done + " of " + data.total);
+      }
+    } else if (data.type === "kept") {
+      say("kept \u00b7 " + data.total + " files");
+    }
+  });
+
+  // Offline the page comes from the cache, and the date in the intro is then the date it was drawn
+  // rather than now. Say so where it cannot be mistaken for the current forecast.
+  function age() {
+    var hours = Math.round((Date.now() - Date.parse(GENERATED)) / 3600000);
+    return hours < 1 ? "under an hour old" : hours + " h old";
+  }
+  if (!navigator.onLine) say("offline \u00b7 " + age());
+  window.addEventListener("offline", function () { say("offline \u00b7 " + age()); });
+})();
+`
+}
+
 export function renderPage(manifest: Manifest): string {
   const priority: Priority = { first: true }
   const byId = new Map(manifest.places.map((entry) => [entry.id, entry]))
@@ -454,6 +538,7 @@ export function renderPage(manifest: Manifest): string {
 <meta name="color-scheme" content="light dark">
 <title>${escape(manifest.site.title)}</title>
 <meta name="description" content="${escape(manifest.site.tagline ?? `Point forecasts for ${manifest.places.length} places.`)}">
+<link rel="manifest" href="${WEBMANIFEST_KEY}">
 <style>${STYLE}</style>
 <script>${HEAD_SCRIPT}</script>
 </head>
@@ -464,6 +549,10 @@ export function renderPage(manifest: Manifest): string {
     <nav class="jump" aria-label="Sections">${jumps.join("")}</nav>
     ${filter ? `<input id="filter" class="filter hidden" type="search" placeholder="Filter places" aria-label="Filter places">` : ""}
     ${theme}
+    <div class="offline" id="offline" hidden>
+      <button type="button" id="keep" aria-pressed="false">Keep offline</button>
+      <span class="offline-note" id="offline-note"></span>
+    </div>
   </div>
 </div>
 <main id="top">
@@ -489,6 +578,7 @@ export function renderPage(manifest: Manifest): string {
      <a href="https://github.com/ueisele/weather-cards">weather-cards</a>.</p>
 </footer>
 <script>${bodyScript(filter)}</script>
+<script>${offlineScript(manifest)}</script>
 </body>
 </html>
 `
