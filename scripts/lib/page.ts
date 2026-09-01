@@ -148,6 +148,11 @@ function mapFigure(card: MapCard, caption: string) {
   // the character count, which is coarse and enough, because the only question is whether two
   // rectangles touch.
   const GAP = 24, LINE = 32, EM = 13.5
+  // **Where the baseline goes.** Firefox reports the font's layout box for SVG text, not its ink:
+  // ascent 24.6, descent 6.7 either side of the baseline. Centring on that box, or on cap height,
+  // both leave the word looking high — the box reserves room for accents most words do not use.
+  // Three units lower reads as centred against the dot, judged on a magnified render.
+  const BASE = 13
   // **The dots are obstacles too.** A label cleared of every other label can still be run through
   // by a neighbour's dot, which is what happened to "Bønå hurtigbåtkai": Stigfjellet's marker sat
   // in the middle of the word. The dot is r=13 with a 4-unit stroke, so 17 with a little air.
@@ -165,7 +170,7 @@ function mapFigure(card: MapCard, caption: string) {
     // Right of the dot first, then left, then the rows above and below — in that order because a
     // name reads best beside its dot and only moves away when it has to.
     const candidates = [
-      [GAP, 10, "start"], [-GAP, 10, "end"],
+      [GAP, BASE, "start"], [-GAP, BASE, "end"],
       [GAP, -LINE + 6, "start"], [-GAP, -LINE + 6, "end"],
       [GAP, LINE + 14, "start"], [-GAP, LINE + 14, "end"],
       [0, -LINE - 10, "middle"], [0, LINE + 30, "middle"],
@@ -291,7 +296,12 @@ const DARK_TOKENS = `
   --line: #262d35;
   --accent: #3987e5;
   --flag: #d9a441;
-  --flag-ground: #26200f;`
+  --flag-ground: #26200f;
+  --pin-plate: #0f1318ee;
+  --pin-edge: #eaeef244;
+  --pin-ink: #eaeef2;
+  --pin-dot: #eaeef2;
+  --pin-dot-edge: #0f1318;`
 
 const STYLE = `
 :root {
@@ -305,6 +315,11 @@ const STYLE = `
   --accent: #2a78d6;
   --flag: #8a5a10;
   --flag-ground: #fbf1e2;
+  --pin-plate: #ffffffee;
+  --pin-edge: #13182033;
+  --pin-ink: #131820;
+  --pin-dot: #131820;
+  --pin-dot-edge: #ffffff;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {${DARK_TOKENS}
@@ -453,17 +468,21 @@ main { max-width: 1180px; margin: 0 auto; padding: 2.25rem 1.25rem 5rem; }
 .map-frame img { display: block; width: 100%; height: auto; }
 .map-pins { position: absolute; inset: 0; width: 100%; height: 100%; }
 .map-pins a { cursor: pointer; }
-.map-pin { fill: #1b1f24; stroke: #ffffff; stroke-width: 4; pointer-events: none; }
+.map-pin { fill: var(--pin-dot); stroke: var(--pin-dot-edge); stroke-width: 4; pointer-events: none; }
 /* Drawn before the dot and the name, so it never covers either. */
-.map-plate { fill: #ffffffdd; stroke: #1b1f2433; stroke-width: 2; pointer-events: none; }
+/* The map underneath is the same light topographic sheet in both themes, so these are their own
+   tokens: the plate is what carries the theme, not the terrain. */
+.map-plate { fill: var(--pin-plate); stroke: var(--pin-edge); stroke-width: 2; pointer-events: none; }
 /* The dot is 13 units across a 1920 viewBox — about two pixels on a phone. This is the target. */
 .map-hit { fill: transparent; }
 .map-label {
   font: 600 26px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  fill: #1b1f24; stroke: #ffffff; stroke-width: 6; paint-order: stroke;
+  /* The plate does the separating now, so the outline that used to hold the name off the terrain
+     is gone: on a dark plate a white one would ring every letter. */
+  fill: var(--pin-ink);
 }
-.map-pins a:hover .map-pin { fill: #2a78d6; }
-.map-pins a:hover .map-label { fill: #2a78d6; }
+.map-pins a:hover .map-pin { fill: var(--accent); }
+.map-pins a:hover .map-label { fill: var(--accent); }
 .credit { color: var(--muted); }
 
 .singles { margin: 0 0 1rem; }
