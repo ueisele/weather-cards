@@ -212,6 +212,14 @@ bun run render && bun run preview
 git commit renderer.json       # once the charts still look right
 ```
 
+> **Push the dotfiles commit first.** The pin names a commit by sha, and the job clones it from
+> GitLab — so a pin pushed here before the commit it names exists there fails the run at *Fetch the
+> pinned renderer*, with `pathspec … did not match any file(s)`. The order is always: commit and
+> push in dotfiles, then bump and push here. Locally you can get ahead of that with
+> `WEATHER_CARDS_RENDERER=/path/to/dotfiles/15_opencode/plugins/web-research bun run render`, which
+> ignores the pin and reads a working copy — the way a renderer change is looked at before its
+> commit exists anywhere.
+
 The checkout is a partial, sparse clone: no blobs until they are needed, and only the two
 directories the plugin needs — it imports a few modules from `15_opencode/shared`, so it cannot stop
 at its own directory. About two seconds and twelve megabytes.
