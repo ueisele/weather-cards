@@ -22,7 +22,20 @@ const CHART_WIDTH = 1920
 const CHART_HEIGHT = 1510
 
 /** Below this many places a filter box is furniture; above it, it is the only way to find one. */
-const FILTER_THRESHOLD = 8
+const FILTER_THRESHOLD = 12
+
+/** Drawn, not typed. A Unicode moon or sun is a font question — measured once as an empty box —
+ *  and these have to be legible at 19 px on a phone in daylight. */
+const ICON = (paths: string) => `<svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"` +
+  ` fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"` +
+  ` stroke-linejoin="round">${paths}</svg>`
+const ICONS = {
+  auto: ICON(`<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor" stroke="none"/>`),
+  light: ICON(`<circle cx="12" cy="12" r="4.2"/><path d="M12 3.2v1.9M12 18.9v1.9M4.6 12H2.7M21.3 12h-1.9M6.8 6.8L5.4 5.4M18.6 18.6l-1.4-1.4M6.8 17.2l-1.4 1.4M18.6 5.4l-1.4 1.4"/>`),
+  dark: ICON(`<path d="M20 14.2A8.2 8.2 0 0 1 9.8 4a8.4 8.4 0 1 0 10.2 10.2z"/>`),
+  keep: ICON(`<circle cx="12" cy="12" r="9"/><path d="M12 7v8m0 0l-3.2-3.2M12 15l3.2-3.2"/>`),
+  kept: ICON(`<circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.6"/>`),
+} as const
 
 function escape(value: unknown) {
   return String(value).replace(/[&<>"']/g, (character) => (
@@ -228,14 +241,35 @@ h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
   background: var(--ground);
   border-bottom: 1px solid var(--line);
 }
+/* Two rows on purpose, not three by accident: identity and controls above, the sections below.
+   The sections are the one thing wanted mid-scroll, so they get the full width and a tap target. */
 .bar-inner {
-  max-width: 1180px; margin: 0 auto; padding: 0.75rem 1.25rem;
-  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  max-width: 1180px; margin: 0 auto; padding: 0.45rem 1.25rem;
+  display: flex; align-items: center; gap: 0.5rem;
 }
-.brand { font-size: 1rem; font-weight: 640; margin: 0; }
+/* **Not flex-wrap.** Wrapping happens before shrinking, so a long title would push the offline
+   control onto a third line rather than shorten itself. A row that cannot wrap has to shrink. */
+.bar-top { display: flex; align-items: center; gap: 0.5rem; flex-wrap: nowrap; min-width: 0; }
+.brand {
+  font-size: 1rem; font-weight: 640; margin: 0;
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .brand a { text-decoration: none; }
-.jump { display: flex; gap: 0.9rem; overflow-x: auto; flex: 1; scrollbar-width: thin; }
-.jump a { font-size: 0.82rem; color: var(--ink2); text-decoration: none; white-space: nowrap; padding: 0.15rem 0; }
+/* The scroll area is its own flex item, so a chip can never slide under the controls beside it —
+   which is what happened when both lived in one scrolling row. */
+.jump {
+  display: flex; gap: 0; overflow-x: auto; scrollbar-width: none;
+  flex: 1 1 auto; min-width: 0; order: -1;
+  margin-left: -1.25rem; padding-left: 1.25rem;
+  /* A chip cut off mid-word reads as a bug; the same cut under a fade reads as "there is more". */
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 1.6rem), transparent 100%);
+}
+.jump::-webkit-scrollbar { display: none; }
+.jump a {
+  font-size: 0.95rem; color: var(--ink2); text-decoration: none; white-space: nowrap;
+  padding: 0.4rem 0.8rem; margin-right: 0.4rem;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--card);
+}
 .jump a:hover, .jump a:focus-visible { color: var(--accent); }
 .filter {
   font: inherit; font-size: 0.82rem; padding: 0.3rem 0.6rem;
@@ -244,23 +278,39 @@ h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
 }
 
 /* Three states, not two: "Auto" has to be reachable again once it has been left. */
-.theme { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--card); }
-.theme button {
-  font: inherit; font-size: 0.72rem; letter-spacing: 0.01em;
-  padding: 0.28rem 0.55rem; border: 0; background: transparent;
-  color: var(--ink2); cursor: pointer;
+.theme {
+  display: inline-flex; border: 1px solid var(--line); border-radius: 6px;
+  overflow: hidden; background: var(--card); flex: 0 0 auto;
 }
+.theme button {
+  font: inherit; display: inline-flex; padding: 0.3rem 0.42rem; border: 0;
+  background: transparent; color: var(--ink2); cursor: pointer;
+}
+.theme button[aria-pressed="true"] { color: var(--ink); background: var(--card); }
 .theme button + button { border-left: 1px solid var(--line); }
 .theme button:hover { color: var(--ink); }
-/* The offline control borrows the theme switch's shape so the bar keeps one vocabulary. */
-.offline { display: inline-flex; align-items: center; gap: 0.45rem; }
+/* The offline control borrows the theme switch's shape so the bar keeps one vocabulary. It is an
+   icon and, once it holds a copy, how old that copy is — no word, because the bar has no room for
+   one and the mark changes shape between the two states rather than only shade. */
+.offline { display: inline-flex; align-items: center; flex: 0 0 auto; }
 .offline button {
-  font: inherit; font-size: 0.72rem; letter-spacing: 0.01em;
-  padding: 0.28rem 0.55rem; border: 1px solid var(--line); border-radius: 6px;
+  font: inherit; font-size: 0.72rem; font-variant-numeric: tabular-nums;
+  display: inline-flex; align-items: center; gap: 0.32rem;
+  padding: 0.3rem 0.5rem; border: 1px solid var(--line); border-radius: 6px;
   background: var(--card); color: var(--ink2); cursor: pointer;
 }
-.offline button:hover { color: var(--ink); }
 .offline button[aria-pressed="true"] { color: var(--ink); border-color: var(--ink2); }
+/* An inline svg sits on the text baseline and drags descender space in with it, which made this
+   button 5 px taller than the theme switch beside it and pushed the figure below the icon's
+   middle. A flex box around it has no baseline to sit on. */
+.bar svg { display: block; }
+.offline .mark { display: inline-flex; }
+.offline .age:empty { display: none; }
+/* **The ring carries the age, not the number.** Tinting the figure costs legibility of the one
+   thing being read. And the colour says how old this copy is rather than telling you to refresh:
+   it turns while you are offline, which is exactly when you cannot. */
+.offline button[data-age="aging"] .mark { color: #c98a00; }
+.offline button[data-age="stale"] .mark { color: #d0663a; }
 .offline-note { font-size: 0.68rem; color: var(--ink2); font-variant-numeric: tabular-nums; }
 .theme button[aria-pressed="true"] { background: var(--line); color: var(--ink); font-weight: 600; }
 
@@ -437,12 +487,14 @@ function offlineScript(manifest: Manifest): string {
   if (!("serviceWorker" in navigator)) return;
   var URLS = ${JSON.stringify(offlineUrls(manifest))};
   var GENERATED = ${JSON.stringify(manifest.generated_at)};
+  var MARK_KEEP = ${JSON.stringify(ICONS.keep)};
+  var MARK_KEPT = ${JSON.stringify(ICONS.kept)};
   var box = document.getElementById("offline");
   var button = document.getElementById("keep");
-  var note = document.getElementById("offline-note");
-  if (!box || !button || !note) return;
+  var mark = document.getElementById("keep-mark");
+  var ageEl = document.getElementById("keep-age");
+  if (!box || !button || !mark || !ageEl) return;
 
-  function say(text) { note.textContent = text; }
   function post(message) {
     navigator.serviceWorker.ready.then(function (registration) {
       var worker = navigator.serviceWorker.controller || registration.active;
@@ -450,7 +502,30 @@ function offlineScript(manifest: Manifest): string {
     });
   }
 
-  // Shown only once the worker exists to give it meaning.
+  // How old the kept copy is. The site publishes hourly, so hours are the normal unit and a
+  // couple of them are unremarkable; a day is worth a colour, and past one the forecast is behind
+  // enough that it should not be planned on without saying so.
+  function age() {
+    var hours = (Date.now() - Date.parse(GENERATED)) / 3600000;
+    var text = hours < 1 ? "now" : hours < 48 ? Math.round(hours) + " h" : Math.round(hours / 24) + " d";
+    return { text: text, tone: hours < 6 ? "fresh" : hours < 24 ? "aging" : "stale" };
+  }
+
+  function show(keeping) {
+    button.setAttribute("aria-pressed", String(keeping));
+    mark.innerHTML = keeping ? MARK_KEPT : MARK_KEEP;
+    if (!keeping) {
+      ageEl.textContent = "";
+      button.removeAttribute("data-age");
+      button.setAttribute("aria-label", "Keep this site offline");
+      return;
+    }
+    var current = age();
+    ageEl.textContent = current.text;
+    button.setAttribute("data-age", current.tone);
+    button.setAttribute("aria-label", "Kept offline, drawn " + current.text + " ago");
+  }
+
   navigator.serviceWorker.register(${JSON.stringify(WORKER_KEY)}).then(function () {
     return navigator.serviceWorker.ready;
   }).then(function () {
@@ -464,34 +539,22 @@ function offlineScript(manifest: Manifest): string {
 
   button.addEventListener("click", function () {
     var on = button.getAttribute("aria-pressed") === "true";
-    button.setAttribute("aria-pressed", String(!on));
-    say(on ? "" : "keeping\u2026");
+    show(!on);
+    if (!on) ageEl.textContent = "\u2026";
     post({ type: on ? "forget" : "keep", urls: URLS });
   });
 
   navigator.serviceWorker.addEventListener("message", function (event) {
     var data = event.data || {};
-    if (data.type === "status") {
-      button.setAttribute("aria-pressed", String(data.keeping));
-      if (!data.keeping) say(data.have > 1 ? data.have + " of " + data.total + " cached" : "");
-      else say(data.have >= data.total ? "kept" : "keeping\u2026");
-    } else if (data.type === "progress") {
-      if (data.done % 5 === 0 || data.done === data.total) {
-        say("keeping " + data.done + " of " + data.total);
-      }
-    } else if (data.type === "kept") {
-      say("kept \u00b7 " + data.total + " files");
-    }
+    if (data.type === "status") show(data.keeping);
+    else if (data.type === "progress") { ageEl.textContent = Math.round(data.done / data.total * 100) + "%"; }
+    else if (data.type === "kept") show(true);
   });
 
-  // Offline the page comes from the cache, and the date in the intro is then the date it was drawn
-  // rather than now. Say so where it cannot be mistaken for the current forecast.
-  function age() {
-    var hours = Math.round((Date.now() - Date.parse(GENERATED)) / 3600000);
-    return hours < 1 ? "under an hour old" : hours + " h old";
-  }
-  if (!navigator.onLine) say("offline \u00b7 " + age());
-  window.addEventListener("offline", function () { say("offline \u00b7 " + age()); });
+  // The clock keeps moving while the page is open, and on a trip it may stay open for a long time.
+  setInterval(function () {
+    if (button.getAttribute("aria-pressed") === "true") show(true);
+  }, 300000);
 })();
 `
 }
@@ -526,7 +589,9 @@ export function renderPage(manifest: Manifest): string {
   // a switch that does nothing is worse than no switch.
   const theme = `<div class="theme" id="theme" role="group" aria-label="Colour theme" hidden>${
     [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]]
-      .map(([choice, label]) => `<button type="button" data-choice="${choice}" aria-pressed="false">${label}</button>`)
+      .map(([choice, label]) =>
+        `<button type="button" data-choice="${choice}" aria-pressed="false" aria-label="${label}" title="${label}">${
+          ICONS[choice as keyof typeof ICONS]}</button>`)
       .join("")
   }</div>`
 
@@ -545,13 +610,15 @@ export function renderPage(manifest: Manifest): string {
 <body>
 <div class="bar">
   <div class="bar-inner">
-    <p class="brand"><a href="#top">${escape(manifest.site.title)}</a></p>
-    <nav class="jump" aria-label="Sections">${jumps.join("")}</nav>
+    <div class="bar-top">
     ${filter ? `<input id="filter" class="filter hidden" type="search" placeholder="Filter places" aria-label="Filter places">` : ""}
     ${theme}
     <div class="offline" id="offline" hidden>
-      <button type="button" id="keep" aria-pressed="false">Keep offline</button>
-      <span class="offline-note" id="offline-note"></span>
+      <button type="button" id="keep" aria-pressed="false" aria-label="Keep this site offline">
+        <span class="mark" id="keep-mark">${ICONS.keep}</span><span class="age" id="keep-age"></span>
+      </button>
+    </div>
+    <nav class="jump" aria-label="Sections">${jumps.join("")}</nav>
     </div>
   </div>
 </div>
