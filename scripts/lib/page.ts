@@ -112,11 +112,24 @@ const overlap = (a: Box, b: Box) =>
   Math.max(0, Math.min(a.x2 + PAD, b.x2 + PAD) - Math.max(a.x1 - PAD, b.x1 - PAD)) *
   Math.max(0, Math.min(a.y2 + PAD, b.y2 + PAD) - Math.max(a.y1 - PAD, b.y1 - PAD))
 
-function boxOf(marker: { x: number; y: number }, width: number, dx: number, dy: number, anchor: string): Box {
+/** The text alone. */
+function textBox(marker: { x: number; y: number }, width: number, dx: number, dy: number, anchor: string): Box {
   const x = marker.x + dx
   const x1 = anchor === "end" ? x - width : anchor === "middle" ? x - width / 2 : x
   const y1 = marker.y + dy - 22.5
   return { x1, y1, x2: x1 + width, y2: y1 + 32 }
+}
+
+/** **The plate is the unit.** Dot and name live in one rounded rectangle, so which name belongs to
+ *  which point is a matter of containment and never of inference. Collisions are tested against
+ *  this, not against the text — which also means a position far from the dot makes a plate so
+ *  large that it loses to a near one on its own, with no rule needed to say so. */
+function boxOf(marker: { x: number; y: number }, width: number, dx: number, dy: number, anchor: string): Box {
+  const text = textBox(marker, width, dx, dy, anchor)
+  return {
+    x1: Math.min(text.x1 - 10, marker.x - 22), y1: Math.min(text.y1 - 3, marker.y - 22),
+    x2: Math.max(text.x2 + 10, marker.x + 22), y2: Math.max(text.y2 + 1, marker.y + 22),
+  }
 }
 
 function overlapOf(marker: { x: number; y: number }, width: number,
@@ -139,10 +152,15 @@ function mapFigure(card: MapCard, caption: string) {
   // by a neighbour's dot, which is what happened to "Bønå hurtigbåtkai": Stigfjellet's marker sat
   // in the middle of the word. The dot is r=13 with a 4-unit stroke, so 17 with a little air.
   const DOT = 19
-  const placed: Box[] = card.markers.map((marker) => ({
+  // Every dot but its own: a name is *meant* to sit beside the point it names, and counting that
+  // as a collision pushed every label into the rows above and below — and so gave every one of
+  // them a leader line it did not need.
+  const dots: Box[] = card.markers.map((marker) => ({
     x1: marker.x - DOT, y1: marker.y - DOT, x2: marker.x + DOT, y2: marker.y + DOT,
   }))
-  const pins = card.markers.map((marker) => {
+  const placed: Box[] = []
+  const pins = card.markers.map((marker, self) => {
+    const obstacles = placed.concat(dots.filter((_, index) => index !== self))
     const width = marker.name.length * EM
     // Right of the dot first, then left, then the rows above and below — in that order because a
     // name reads best beside its dot and only moves away when it has to.
@@ -155,7 +173,7 @@ function mapFigure(card: MapCard, caption: string) {
     const fits = (dx: number, dy: number, anchor: string) => {
       const box = boxOf(marker, width, dx, dy, anchor)
       if (box.x1 < 8 || box.x2 > card.width_px - 8) return undefined
-      return placed.some((other) => overlap(box, other) > 0) ? undefined : box
+      return obstacles.some((other) => overlap(box, other) > 0) ? undefined : box
     }
     // Where nothing is free, take the least bad rather than a fixed side: two names that must
     // share a corner should share as little of it as they can.
@@ -163,13 +181,18 @@ function mapFigure(card: MapCard, caption: string) {
     if (!choice) {
       let least = Infinity
       for (const candidate of candidates) {
-        const cost = overlapOf(marker, width, candidate, placed, card.width_px)
+        const cost = overlapOf(marker, width, candidate, obstacles, card.width_px)
         if (cost < least) { least = cost; choice = candidate }
       }
     }
     const [dx, dy, anchor] = choice!
-    placed.push(boxOf(marker, width, dx, dy, anchor))
+    const box = boxOf(marker, width, dx, dy, anchor)
+    placed.push(box)
+
+    const plate = `<rect class="map-plate" x="${box.x1.toFixed(1)}" y="${box.y1.toFixed(1)}"` +
+      ` width="${(box.x2 - box.x1).toFixed(1)}" height="${(box.y2 - box.y1).toFixed(1)}" rx="22"></rect>`
     return `<a href="#${escape(marker.id)}">
+          ${plate}
           <circle class="map-hit" cx="${marker.x.toFixed(1)}" cy="${marker.y.toFixed(1)}" r="72"></circle>
           <circle class="map-pin" cx="${marker.x.toFixed(1)}" cy="${marker.y.toFixed(1)}" r="13"></circle>
           <text class="map-label" x="${(marker.x + dx).toFixed(1)}" y="${(marker.y + dy).toFixed(1)}"
@@ -431,6 +454,8 @@ main { max-width: 1180px; margin: 0 auto; padding: 2.25rem 1.25rem 5rem; }
 .map-pins { position: absolute; inset: 0; width: 100%; height: 100%; }
 .map-pins a { cursor: pointer; }
 .map-pin { fill: #1b1f24; stroke: #ffffff; stroke-width: 4; pointer-events: none; }
+/* Drawn before the dot and the name, so it never covers either. */
+.map-plate { fill: #ffffffdd; stroke: #1b1f2433; stroke-width: 2; pointer-events: none; }
 /* The dot is 13 units across a 1920 viewBox — about two pixels on a phone. This is the target. */
 .map-hit { fill: transparent; }
 .map-label {
