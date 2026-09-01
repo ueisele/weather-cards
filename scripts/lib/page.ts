@@ -103,32 +103,97 @@ function figure(card: Card, version: string, alt: string, caption: string, prior
  * page's furniture, and the usual invert-and-rotate trick makes a topographic map look cheap. The
  * markers are therefore fixed dark-on-white, which reads on every colour Kartverket draws.
  */
+type Box = { x1: number; y1: number; x2: number; y2: number }
+/** The label is painted with a 6-unit white outline that `getBBox` does not report, so two boxes
+ *  can clear each other by four units and still touch on screen. Measured: a name is 31.3 units
+ *  tall and at most 13.4 wide per character. The pad covers the outline and leaves a little air. */
+const PAD = 9
+const overlap = (a: Box, b: Box) =>
+  Math.max(0, Math.min(a.x2 + PAD, b.x2 + PAD) - Math.max(a.x1 - PAD, b.x1 - PAD)) *
+  Math.max(0, Math.min(a.y2 + PAD, b.y2 + PAD) - Math.max(a.y1 - PAD, b.y1 - PAD))
+
+function boxOf(marker: { x: number; y: number }, width: number, dx: number, dy: number, anchor: string): Box {
+  const x = marker.x + dx
+  const x1 = anchor === "end" ? x - width : anchor === "middle" ? x - width / 2 : x
+  const y1 = marker.y + dy - 22.5
+  return { x1, y1, x2: x1 + width, y2: y1 + 32 }
+}
+
+function overlapOf(marker: { x: number; y: number }, width: number,
+                   candidate: readonly [number, number, string], placed: readonly Box[],
+                   mapWidth: number) {
+  const box = boxOf(marker, width, candidate[0], candidate[1], candidate[2])
+  // A label off the edge is unreadable, so it counts as worse than any overlap with a neighbour.
+  const off = box.x1 < 8 || box.x2 > mapWidth - 8 ? 1e9 : 0
+  return off + placed.reduce((sum, other) => sum + overlap(box, other), 0)
+}
+
 function mapFigure(card: MapCard, caption: string) {
+  // **Labels are placed, not just offset.** Two places a kilometre apart put their names on top of
+  // each other, which is worse than a name being on the wrong side of its dot. Each label takes the
+  // first candidate position that does not overlap one already placed; the boxes are estimates from
+  // the character count, which is coarse and enough, because the only question is whether two
+  // rectangles touch.
+  const GAP = 24, LINE = 32, EM = 13.5
+  // **The dots are obstacles too.** A label cleared of every other label can still be run through
+  // by a neighbour's dot, which is what happened to "Bønå hurtigbåtkai": Stigfjellet's marker sat
+  // in the middle of the word. The dot is r=13 with a 4-unit stroke, so 17 with a little air.
+  const DOT = 19
+  const placed: Box[] = card.markers.map((marker) => ({
+    x1: marker.x - DOT, y1: marker.y - DOT, x2: marker.x + DOT, y2: marker.y + DOT,
+  }))
   const pins = card.markers.map((marker) => {
-    // A label that would run off the right edge is set on the other side of its dot instead.
-    const right = marker.x > card.width_px * 0.62
+    const width = marker.name.length * EM
+    // Right of the dot first, then left, then the rows above and below — in that order because a
+    // name reads best beside its dot and only moves away when it has to.
+    const candidates = [
+      [GAP, 10, "start"], [-GAP, 10, "end"],
+      [GAP, -LINE + 6, "start"], [-GAP, -LINE + 6, "end"],
+      [GAP, LINE + 14, "start"], [-GAP, LINE + 14, "end"],
+      [0, -LINE - 10, "middle"], [0, LINE + 30, "middle"],
+    ] as const
+    const fits = (dx: number, dy: number, anchor: string) => {
+      const box = boxOf(marker, width, dx, dy, anchor)
+      if (box.x1 < 8 || box.x2 > card.width_px - 8) return undefined
+      return placed.some((other) => overlap(box, other) > 0) ? undefined : box
+    }
+    // Where nothing is free, take the least bad rather than a fixed side: two names that must
+    // share a corner should share as little of it as they can.
+    let choice = candidates.find(([dx, dy, anchor]) => fits(dx, dy, anchor))
+    if (!choice) {
+      let least = Infinity
+      for (const candidate of candidates) {
+        const cost = overlapOf(marker, width, candidate, placed, card.width_px)
+        if (cost < least) { least = cost; choice = candidate }
+      }
+    }
+    const [dx, dy, anchor] = choice!
+    placed.push(boxOf(marker, width, dx, dy, anchor))
     return `<a href="#${escape(marker.id)}">
+          <circle class="map-hit" cx="${marker.x.toFixed(1)}" cy="${marker.y.toFixed(1)}" r="72"></circle>
           <circle class="map-pin" cx="${marker.x.toFixed(1)}" cy="${marker.y.toFixed(1)}" r="13"></circle>
-          <text class="map-label" x="${(marker.x + (right ? -24 : 24)).toFixed(1)}" y="${(marker.y + 10).toFixed(1)}"
-                text-anchor="${right ? "end" : "start"}">${escape(marker.name)}</text>
+          <text class="map-label" x="${(marker.x + dx).toFixed(1)}" y="${(marker.y + dy).toFixed(1)}"
+                text-anchor="${anchor}">${escape(marker.name)}</text>
         </a>`
   }).join("\n        ")
   const names = card.markers.map((marker) => marker.name).join(", ")
+  // **No link across the map.** It used to carry a transparent rectangle over the whole image
+  // linking to the full-size version, which swallowed every tap meant for a place — the pins were
+  // on top but are a few pixels wide on a phone. The full map is a deliberate link in the caption.
   return `<figure class="chart map">
     <div class="map-frame">
       <img src="${escape(card.image)}" width="${card.width_px}" height="${card.height_px}"
            loading="lazy" decoding="async" alt="Locator map: ${escape(names)}">
       <svg class="map-pins" viewBox="0 0 ${card.width_px} ${card.height_px}" role="group"
            aria-label="Places on the map">
-        <a href="${escape(card.full)}" aria-label="Open this map at full size">
-          <rect width="${card.width_px}" height="${card.height_px}" fill="transparent"></rect>
-        </a>
         ${pins}
       </svg>
     </div>
-    <figcaption>${escape(caption)} <span class="credit">${escape(card.attribution)}</span></figcaption>
+    <figcaption>${escape(caption)} <a href="${escape(card.full)}">Full size</a>
+      <span class="credit">${escape(card.attribution)}</span></figcaption>
   </figure>`
 }
+
 
 function age(entry: { issued_at: string; problem?: string }, generatedAt: string) {
   if (entry.issued_at === generatedAt) return `<p class="stamp">Drawn ${escape(stamp(entry.issued_at))}</p>`
@@ -365,7 +430,9 @@ main { max-width: 1180px; margin: 0 auto; padding: 2.25rem 1.25rem 5rem; }
 .map-frame img { display: block; width: 100%; height: auto; }
 .map-pins { position: absolute; inset: 0; width: 100%; height: 100%; }
 .map-pins a { cursor: pointer; }
-.map-pin { fill: #1b1f24; stroke: #ffffff; stroke-width: 4; }
+.map-pin { fill: #1b1f24; stroke: #ffffff; stroke-width: 4; pointer-events: none; }
+/* The dot is 13 units across a 1920 viewBox — about two pixels on a phone. This is the target. */
+.map-hit { fill: transparent; }
 .map-label {
   font: 600 26px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   fill: #1b1f24; stroke: #ffffff; stroke-width: 6; paint-order: stroke;
