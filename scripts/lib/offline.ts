@@ -137,7 +137,7 @@ async function evict(urls) {
     if (wanted[href]) continue;
     // The document is not in the list — a navigation is cached under whatever URL the browser
     // asked for, and that is the copy worth keeping. Recognise it by shape rather than by name.
-    if (!/\\.(png|svg|json)(\\?|$)/.test(href)) continue;
+    if (!/\\.(png|webp|svg|json)(\\?|$)/.test(href)) continue;
     await cache.delete(stored[i]);
     removed++;
   }
@@ -191,8 +191,10 @@ async function keepAll(urls, all) {
  *  sunset would otherwise find nothing — and a chart in the wrong colours beats a broken image by
  *  a distance. The keys differ in one suffix and nothing else, which is what makes this safe. */
 function sibling(href) {
-  if (href.indexOf("-dark.png") >= 0) return href.replace("-dark.png", "-light.png");
-  if (href.indexOf("-light.png") >= 0) return href.replace("-light.png", "-dark.png");
+  // The extension is open: the charts are WebP, and an entry a run could not redraw keeps the PNG
+  // it was published as.
+  if (/-dark\\.(png|webp)/.test(href)) return href.replace(/-dark\\.(png|webp)/, "-light.$1");
+  if (/-light\\.(png|webp)/.test(href)) return href.replace(/-light\\.(png|webp)/, "-dark.$1");
   return null;
 }
 
@@ -268,7 +270,7 @@ self.addEventListener("fetch", function (event) {
   // and can never come to mean another's, and a map name carries its own content hash. A hit is
   // the right answer rather than a stale one. Kept whether or not the switch is on — the bytes
   // have already crossed the network by then, and the next load evicts what the run dropped.
-  if (/\.(png|svg)$/.test(url.pathname)) {
+  if (/\.(png|webp|svg)$/.test(url.pathname)) {
     event.respondWith((async function () {
       var cached = await caches.match(request);
       if (cached) return cached;

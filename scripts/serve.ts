@@ -15,6 +15,7 @@ const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".png": "image/png",
+  ".webp": "image/webp",
   ".svg": "image/svg+xml; charset=utf-8",
   // Without these two the preview cannot register the service worker at all, so offline mode
   // looks broken locally and works once deployed — the worst way round to find out.

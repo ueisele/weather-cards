@@ -27,6 +27,7 @@ import {
   type Card, type GroupEntry, type Manifest, type MapCard, type PlaceEntry,
 } from "./lib/manifest"
 import { renderPage } from "./lib/page"
+import { sourcePng, toLosslessWebp, webpKey } from "./lib/webp"
 import { ICON_SIZES, iconKey, renderIcon } from "./lib/icon"
 import { renderWebmanifest, WEBMANIFEST_KEY, WORKER_KEY, WORKER_SOURCE } from "./lib/offline"
 
@@ -51,7 +52,7 @@ function card(slot: string, title: string, keyBase: string): Card {
     slot,
     title,
     key_base: keyBase,
-    keys: Object.fromEntries(THEMES.map((theme) => [theme, `${keyBase}-${theme}.png`])) as Card["keys"],
+    keys: Object.fromEntries(THEMES.map((theme) => [theme, webpKey(keyBase, theme)])) as Card["keys"],
   }
 }
 
@@ -210,6 +211,7 @@ const places: PlaceEntry[] = []
 const groups: GroupEntry[] = []
 let drawn = 0
 let carried = 0
+const encodable: string[] = []
 let lost = 0
 
 try {
@@ -248,9 +250,12 @@ try {
         throw new Error(`chart ${index} came back as ${chart.type} ${chart.target_ids}, expected ${want.label}`)
       }
       if (chart.status !== "ready") throw new Error(`${want.label}: ${chart.problem?.code ?? chart.status}`)
-      const path = join(out, `${want.key_base}-${want.theme}.png`)
+      // The renderer answers in PNG — it hand-rolls the encoder and has no other format. This is
+      // the file the WebP is made from, and it does not survive the run.
+      const path = join(out, sourcePng(webpKey(want.key_base, want.theme)))
       await mkdir(dirname(path), { recursive: true })
       await writeFile(path, (await store.readBytes(tree, chart.artifact.artifact_id)).bytes)
+      encodable.push(path)
       drawn++
     }
   }
@@ -338,6 +343,12 @@ try {
   }
 } finally {
   await rm(storeRoot, { recursive: true, force: true })
+}
+
+if (encodable.length > 0) {
+  const started = Date.now()
+  await toLosslessWebp(encodable)
+  console.log(`${encodable.length} charts encoded to lossless WebP in ${((Date.now() - started) / 1000).toFixed(1)} s.`)
 }
 
 // Maps are attached last and to every entry, carried-over ones included: a source outage says

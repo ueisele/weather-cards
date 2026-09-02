@@ -668,10 +668,15 @@ function offlineScript(manifest: Manifest): string {
       : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   }
   function wanted() {
-    var drop = themeNow() === "dark" ? "-light.png" : "-dark.png";
+    // The extension is open because a carried-over entry keeps whatever it was published as: the
+    // charts are WebP now and a place the run could not redraw may still be named -light.png.
+    // Doubled backslashes: this is inside a template literal, and a single one is eaten before the
+    // regexp is ever parsed — which turns (\\?|$) into an invalid group and takes the whole script
+    // down, service worker and all.
+    var drop = themeNow() === "dark" ? /-light\\.(png|webp)(\\?|$)/ : /-dark\\.(png|webp)(\\?|$)/;
     // The maps carry a content hash and no theme suffix, so they survive this untouched — which is
     // right, they are one sheet of terrain in both themes.
-    return URLS.filter(function (url) { return url.indexOf(drop) < 0; });
+    return URLS.filter(function (url) { return !drop.test(url); });
   }
 
   function post(message) {

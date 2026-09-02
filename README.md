@@ -32,9 +32,14 @@ from. **All times are UTC** — the tool has no timezone and the page does not i
 
 ## Running it
 
+Needs `cwebp` on the PATH — `sudo dnf install libwebp-tools`, or the equivalent. The renderer
+answers in PNG and the charts are published as lossless WebP, which is half the bytes for the same
+pixels; a render without the encoder stops rather than publishing a manifest naming files it could
+not write.
+
 ```bash
 bun run renderer     # fetch the pinned chart renderer into .renderer/ (once)
-bun run render       # draw everything into out/
+bun run render       # draw everything into out/, charts encoded to lossless WebP
 bun run preview      # serve out/ at http://localhost:8787
 bun run deploy       # upload out/ and remove what is no longer named
 bun run deploy --dry-run
