@@ -703,6 +703,9 @@ function offlineScript(manifest: Manifest): string {
     if (data.type === "status") show(data.keeping);
     else if (data.type === "progress") { ageEl.textContent = Math.round(data.done / data.total * 100) + "%"; }
     else if (data.type === "kept") show(true);
+    // A refresh that gave up leaves whatever was already held; the chip goes back to describing
+    // that rather than sitting on a percentage that stopped moving.
+    else if (data.type === "stalled") show(true);
   });
 
   // The clock keeps moving while the page is open, and on a trip it may stay open for a long time.

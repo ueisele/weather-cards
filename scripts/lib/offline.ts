@@ -146,29 +146,39 @@ async function evict(urls) {
 async function keepAll(urls) {
   var cache = await caches.open(CACHE);
   var got = 0;
+  var missed = 0;
   for (var i = 0; i < urls.length; i++) {
     try {
       var already = await cache.match(urls[i]);
       if (!already) await cache.add(new Request(urls[i], { cache: "reload" }));
       got++;
+      missed = 0;
     } catch (error) {
-      // One image that will not come is not a reason to abandon the other ninety-three.
+      // **Three in a row and stop.** One object that will not come is a bad file — a map carried
+      // over from an earlier run, say — and the other ninety-odd are still worth having. Three
+      // consecutively is not a file, it is the connection, and grinding through the rest is a
+      // hundred attempts to wake the radio for nothing.
+      //
+      // This is the guard that matters, because navigator.onLine only lies in one direction:
+      // it says "online" for any live interface, which on a mountain means one bar and no route.
+      // The check before this one catches the honest case cheaply; this one catches the rest.
+      missed++;
+      if (missed >= 3) {
+        await report({ type: "stalled", done: i + 1, total: urls.length, got: got });
+        return;
+      }
     }
-    // The page renders progress in steps of five, so reporting each of ninety-four costs
-    // ninety-four client lookups and structured clones for figures nobody sees — during the one
-    // phase that is already spending 17.7 MB.
     if ((i + 1) % 5 === 0 || i + 1 === urls.length) {
       await report({ type: "progress", done: i + 1, total: urls.length });
     }
   }
-  // **Only evict once the new run can stand on its own.** A refresh that reached almost nothing —
-  // the signal went while it ran — must leave the previous run alone: an older forecast is worth
-  // having and an empty cache is not. The cost is that a half-failed refresh leaves two runs in
-  // the cache until the next good one, which is bounded and the cheaper mistake.
+  // Only evict once the new run can stand on its own. An aborted refresh never reaches four fifths,
+  // so the previous run survives without needing a rule of its own.
   var complete = got >= urls.length * 0.8;
   if (complete) await evict(urls);
   await report({ type: "kept", total: urls.length, got: got, complete: complete });
 }
+
 
 /** One \`cache.keys()\` and a set, rather than a \`match\` per URL: the answer is the same and it is
  *  one trip to storage instead of ninety-four. */
