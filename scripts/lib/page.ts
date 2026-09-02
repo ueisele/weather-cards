@@ -706,9 +706,17 @@ function offlineScript(manifest: Manifest): string {
   });
 
   // The clock keeps moving while the page is open, and on a trip it may stay open for a long time.
-  setInterval(function () {
-    if (button.getAttribute("aria-pressed") === "true") show(true);
-  }, 300000);
+  // **Only while it is being looked at**, though: a tick behind a locked screen wakes the device to
+  // recalculate a figure nobody is reading. iOS suspends a backgrounded web app anyway, so most of
+  // this is hygiene rather than battery — on a desktop or Android tab it is real.
+  var ticker = null;
+  function tick(on) {
+    if (on && !ticker) ticker = setInterval(function () {
+      if (button.getAttribute("aria-pressed") === "true") show(true);
+    }, 300000);
+    if (!on && ticker) { clearInterval(ticker); ticker = null; }
+  }
+  tick(true);
 
   // ------------------------------------------------------------- reloading ---
   // **Installed to a home screen there is no address bar and no reload button**, and iOS often
@@ -728,7 +736,11 @@ function offlineScript(manifest: Manifest): string {
     try { return Number(sessionStorage.getItem("reloaded") || 0); } catch (error) { return 0; }
   }
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState !== "visible") return;
+    if (document.visibilityState !== "visible") { tick(false); return; }
+    // Back in front: the figure is stale by however long we were away, so correct it once here
+    // rather than having ticked through the absence to keep it right.
+    if (button.getAttribute("aria-pressed") === "true") show(true);
+    tick(true);
     // Offline the fetch would fall back to this same cache, so a reload would cost the scroll
     // position and return nothing.
     if (!navigator.onLine) return;

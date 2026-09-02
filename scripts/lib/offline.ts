@@ -154,7 +154,12 @@ async function keepAll(urls) {
     } catch (error) {
       // One image that will not come is not a reason to abandon the other ninety-three.
     }
-    await report({ type: "progress", done: i + 1, total: urls.length });
+    // The page renders progress in steps of five, so reporting each of ninety-four costs
+    // ninety-four client lookups and structured clones for figures nobody sees — during the one
+    // phase that is already spending 17.7 MB.
+    if ((i + 1) % 5 === 0 || i + 1 === urls.length) {
+      await report({ type: "progress", done: i + 1, total: urls.length });
+    }
   }
   // **Only evict once the new run can stand on its own.** A refresh that reached almost nothing —
   // the signal went while it ran — must leave the previous run alone: an older forecast is worth
@@ -165,11 +170,15 @@ async function keepAll(urls) {
   await report({ type: "kept", total: urls.length, got: got, complete: complete });
 }
 
+/** One \`cache.keys()\` and a set, rather than a \`match\` per URL: the answer is the same and it is
+ *  one trip to storage instead of ninety-four. */
 async function status(urls) {
   var cache = await caches.open(CACHE);
   var on = await keeping();
+  var stored = {};
+  (await cache.keys()).forEach(function (request) { stored[request.url] = true; });
   var have = 0;
-  for (var i = 0; i < urls.length; i++) if (await cache.match(urls[i])) have++;
+  urls.forEach(function (url) { if (stored[new URL(url, self.location.href).href]) have++; });
   await report({ type: "status", keeping: on, have: have, total: urls.length });
 }
 
@@ -190,7 +199,11 @@ self.addEventListener("message", function (event) {
     // than nothing at all — you keep an older forecast instead of losing the page. Evicting up
     // front is only for the switch-off case, where there is no refetch to protect and the
     // opportunistic cache still has to stay bounded.
+    // **Offline, do neither.** \`keepAll\` forces a network request per URL — ninety-four attempts
+    // to wake the radio, ninety-four exceptions caught, in the situation where the battery matters
+    // most. And there is nothing to evict: the list came from a page served out of this same cache.
     event.waitUntil(keeping().then(function (on) {
+      if (!navigator.onLine) return status(urls);
       return on ? keepAll(urls) : evict(urls).then(function () { return status(urls); });
     }));
   }
