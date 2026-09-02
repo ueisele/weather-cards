@@ -659,10 +659,27 @@ function offlineScript(manifest: Manifest): string {
   // How old the kept copy is. The site publishes hourly, so hours are the normal unit and a
   // couple of them are unremarkable; a day is worth a colour, and past one the forecast is behind
   // enough that it should not be planned on without saying so.
+  //
+  // **It also says when it will next be wrong**, because the timer that redraws it is aimed at that
+  // moment rather than at a fixed interval. The boundaries are not the round hours they look like:
+  // the figure is rounded, not truncated, so the text steps at 1.5 h, 2.5 h, … while the colour
+  // steps at 6 h and 24 h. Working that out here keeps the two answers in one place — a timer that
+  // guessed hourly would show the wrong number for up to half an hour.
   function age() {
-    var hours = (Date.now() - Date.parse(GENERATED)) / 3600000;
+    var ms = Date.now() - Date.parse(GENERATED);
+    var hours = ms / 3600000;
     var text = hours < 1 ? "now" : hours < 48 ? Math.round(hours) + " h" : Math.round(hours / 24) + " d";
-    return { text: text, tone: hours < 6 ? "fresh" : hours < 24 ? "aging" : "stale" };
+    var marks = [1, 6, 24, 48];                                 // "now" ends, the two colours, days begin
+    // The rounding step, and only the one this band is in: adding both put a mark half an hour
+    // early in every hour of the first two days, which woke the timer for a redraw that changed
+    // nothing. Measured over five days at one-minute resolution, this is the boundary every time.
+    if (hours >= 1 && hours < 48) marks.push(Math.floor(hours - 0.5) + 1.5);
+    if (hours >= 48) marks.push((Math.floor(hours / 24 - 0.5) + 1.5) * 24);
+    var next = Infinity;
+    for (var i = 0; i < marks.length; i++) if (marks[i] > hours && marks[i] < next) next = marks[i];
+    // A minute at least, so a clock skew or an unparseable stamp cannot turn this into a spin.
+    var until = next === Infinity ? 86400000 : Math.max(60000, (next - hours) * 3600000);
+    return { text: text, tone: hours < 6 ? "fresh" : hours < 24 ? "aging" : "stale", until: until };
   }
 
   function show(keeping) {
@@ -708,50 +725,47 @@ function offlineScript(manifest: Manifest): string {
     else if (data.type === "stalled") show(true);
   });
 
-  // The clock keeps moving while the page is open, and on a trip it may stay open for a long time.
-  // **Only while it is being looked at**, though: a tick behind a locked screen wakes the device to
-  // recalculate a figure nobody is reading. iOS suspends a backgrounded web app anyway, so most of
-  // this is hygiene rather than battery — on a desktop or Android tab it is real.
+  // Redraw the age, and nothing else. **Aimed at the moment the text or the colour actually
+  // changes** — age() works that out — rather than at a fixed interval: at most one wake-up an
+  // hour against twelve for the five-minute interval this replaces, and it is correct at the
+  // boundary instead of up to five minutes behind it. Only while the page is being looked at; a
+  // tick behind a locked screen recalculates a figure nobody is reading.
   var ticker = null;
   function tick(on) {
-    if (on && !ticker) ticker = setInterval(function () {
+    if (!on) { if (ticker) { clearTimeout(ticker); ticker = null; } return; }
+    if (ticker) return;
+    ticker = setTimeout(function () {
+      ticker = null;
       if (button.getAttribute("aria-pressed") === "true") show(true);
-    }, 300000);
-    if (!on && ticker) { clearInterval(ticker); ticker = null; }
+      tick(true);
+    }, age().until + 1000);
   }
   tick(true);
 
   // ------------------------------------------------------------- reloading ---
   // **Installed to a home screen there is no address bar and no reload button**, and iOS often
   // resumes a suspended page rather than loading it again — so an app opened on the fourth day of
-  // a walk can show the fourth day's forecast from the first day. Two answers, because they cover
-  // different moments: a button for "now", and a reload on return for "I did not think about it".
+  // a walk can show the first day's forecast. This button is the answer, and now the only one.
+  //
+  // **A second answer stood here and has been removed**: a reload on returning to the foreground,
+  // guarded by staleness and a quiet window. It contradicted the design around it. A reload
+  // fetches a document whose version tokens name a new run; the page then posts its refresh, and
+  // with the keep switch on that pulls the entire run — so a rule nobody asked about could spend
+  // 18 MB of mobile data, which is the exact thing the keep switch exists to prevent. Walking,
+  // battery and data outrank freshness: an older forecast is usually fine, and the age on the chip
+  // is what makes deciding that possible. The page in the foreground now touches the network never.
   var reload = document.getElementById("reload");
   if (reload) reload.addEventListener("click", function () {
     reload.setAttribute("aria-busy", "true");
     location.reload();
   });
 
-  var STALE = 30 * 60 * 1000;   // a run is published hourly; half of that is old enough to matter
-  var QUIET = 10 * 60 * 1000;   // never twice in this window, so a stalled publish cannot loop
-  var loadedAt = Date.now();
-  function lastReload() {
-    try { return Number(sessionStorage.getItem("reloaded") || 0); } catch (error) { return 0; }
-  }
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState !== "visible") { tick(false); return; }
     // Back in front: the figure is stale by however long we were away, so correct it once here
     // rather than having ticked through the absence to keep it right.
     if (button.getAttribute("aria-pressed") === "true") show(true);
     tick(true);
-    // Offline the fetch would fall back to this same cache, so a reload would cost the scroll
-    // position and return nothing.
-    if (!navigator.onLine) return;
-    if (Date.now() - loadedAt < 60000) return;
-    if (Date.now() - lastReload() < QUIET) return;
-    if (Date.now() - Date.parse(GENERATED) < STALE) return;
-    try { sessionStorage.setItem("reloaded", String(Date.now())); } catch (error) { /* private mode */ }
-    location.reload();
   });
 })();
 `
