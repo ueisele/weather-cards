@@ -833,8 +833,7 @@ export function renderPage(manifest: Manifest): string {
     <h1>${escape(manifest.site.title)}</h1>
     ${manifest.site.tagline ? `<p class="lede">${escape(manifest.site.tagline)}</p>` : ""}
     <p class="lede">Each place is drawn once with all models together — ${models} — and once per
-      model. Where the models disagree, the forecast is less certain than any one of them looks.
-      Updated ${escape(stamp(manifest.generated_at))}.</p>
+      model. Updated ${escape(stamp(manifest.generated_at))}.</p>
   </div>
   ${sections.join("\n  ")}
 </main>
