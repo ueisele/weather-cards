@@ -395,6 +395,13 @@ h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
   background: transparent; color: var(--ink2); cursor: pointer;
 }
 .theme button + button { border-left: 1px solid var(--line); }
+/* **The widest control is also the least used.** Below this the segments collapse to the active
+   one, which cycles on tap: the sections need the width more than the theme needs to show its
+   alternatives. Measured at 393 px: the strip goes from 176 px to 243 px. */
+@media (max-width: 700px) {
+  .theme button:not([aria-pressed="true"]) { display: none; }
+  .theme button + button { border-left: 0; }
+}
 .theme button:hover { color: var(--ink); }
 /* The offline control borrows the theme switch's shape so the bar keeps one vocabulary. It is an
    icon and, once it holds a copy, how old that copy is — no word, because the bar has no room for
@@ -570,7 +577,13 @@ function bodyScript(filter: boolean) {
     control.addEventListener("click", function (event) {
       var button = event.target.closest("button[data-choice]");
       if (!button) return;
-      var choice = button.dataset.choice;
+      // **Narrow, only the active segment is on screen**, so a tap on it has to mean "the next
+      // one" or it would mean nothing. Wide, all three are there and a tap picks the one tapped.
+      // One rule covers both: tapping the current choice advances, tapping another selects it.
+      var order = ["auto", "light", "dark"];
+      var choice = button.dataset.choice === stored()
+        ? order[(order.indexOf(stored()) + 1) % order.length]
+        : button.dataset.choice;
       try {
         if (choice === "auto") localStorage.removeItem("theme"); else localStorage.setItem("theme", choice);
       } catch (error) { /* the choice still holds for this page */ }
