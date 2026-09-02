@@ -100,8 +100,11 @@ export const WORKER_SOURCE = `
 //   1. **The page opens offline.** Always, with no switch. The document is cached on the way past
 //      and so is every image actually looked at — those are already downloaded, so keeping them
 //      costs nothing but disk.
-//   2. **The whole almanac is kept.** Only when asked. About 18 MB across both themes, and a new
-//      run every hour, so an automatic full fetch would spend mobile data unnoticed.
+//   2. **The whole almanac is kept.** Only when asked, and only the theme on the screen: about
+//      8.5 MB of the 17 the run holds in both. A new run every hour, so an automatic full fetch
+//      would spend mobile data unnoticed. The page sends two lists — what to hold, and everything
+//      the run references — because eviction is judged against the second and downloading against
+//      the first.
 
 var CACHE = "almanac";
 var STATE = "https://almanac.invalid/keep";
@@ -143,7 +146,7 @@ async function evict(urls) {
 
 /** Fetch the whole run into the cache, one at a time. Eighty-odd parallel requests is a burst a
  *  phone on a weak signal handles worse than a queue, and nothing is waiting on the result. */
-async function keepAll(urls) {
+async function keepAll(urls, all) {
   var cache = await caches.open(CACHE);
   var got = 0;
   var missed = 0;
@@ -175,10 +178,23 @@ async function keepAll(urls) {
   // Only evict once the new run can stand on its own. An aborted refresh never reaches four fifths,
   // so the previous run survives without needing a rule of its own.
   var complete = got >= urls.length * 0.8;
-  if (complete) await evict(urls);
+  // **Evict against everything this run references, not against what was fetched.** The two lists
+  // differ by a theme: only one is downloaded, but the other's images are legitimate — opportunistic
+  // copies of charts that were actually looked at, and the sibling a switched theme falls back on.
+  // Evicting by the fetch list would delete them on the next load.
+  if (complete) await evict(all || urls);
   await report({ type: "kept", total: urls.length, got: got, complete: complete });
 }
 
+
+/** The same chart in the other theme. Only one theme is kept, so a system that flips to dark at
+ *  sunset would otherwise find nothing — and a chart in the wrong colours beats a broken image by
+ *  a distance. The keys differ in one suffix and nothing else, which is what makes this safe. */
+function sibling(href) {
+  if (href.indexOf("-dark.png") >= 0) return href.replace("-dark.png", "-light.png");
+  if (href.indexOf("-light.png") >= 0) return href.replace("-light.png", "-dark.png");
+  return null;
+}
 
 /** One \`cache.keys()\` and a set, rather than a \`match\` per URL: the answer is the same and it is
  *  one trip to storage instead of ninety-four. */
@@ -195,10 +211,13 @@ async function status(urls) {
 self.addEventListener("message", function (event) {
   var data = event.data || {};
   var urls = data.urls || [];
+  // Everything the run references, and the part of it worth downloading — one theme's images, the
+  // maps, the icons. The page decides which; here they are just two lists with different jobs.
+  var keep = data.keep || urls;
   if (data.type === "keep") {
     event.waitUntil(caches.open(CACHE).then(function (cache) {
       return cache.put(STATE, new Response("on"));
-    }).then(function () { return keepAll(urls); }));
+    }).then(function () { return keepAll(keep, urls); }));
   } else if (data.type === "forget") {
     event.waitUntil(caches.delete(CACHE).then(function () {
       return report({ type: "status", keeping: false, have: 0, total: urls.length });
@@ -213,8 +232,8 @@ self.addEventListener("message", function (event) {
     // to wake the radio, ninety-four exceptions caught, in the situation where the battery matters
     // most. And there is nothing to evict: the list came from a page served out of this same cache.
     event.waitUntil(keeping().then(function (on) {
-      if (!navigator.onLine) return status(urls);
-      return on ? keepAll(urls) : evict(urls).then(function () { return status(urls); });
+      if (!navigator.onLine) return status(keep);
+      return on ? keepAll(keep, urls) : evict(urls).then(function () { return status(keep); });
     }));
   }
 });
@@ -253,12 +272,21 @@ self.addEventListener("fetch", function (event) {
     event.respondWith((async function () {
       var cached = await caches.match(request);
       if (cached) return cached;
-      var fresh = await fetch(request);
-      if (fresh.ok) {
-        var cache = await caches.open(CACHE);
-        await cache.put(request, fresh.clone());
+      try {
+        var fresh = await fetch(request);
+        if (fresh.ok) {
+          var cache = await caches.open(CACHE);
+          await cache.put(request, fresh.clone());
+        }
+        return fresh;
+      } catch (error) {
+        // Offline and not held: the other theme's copy of this chart is the same forecast, and it
+        // is what makes keeping one theme safe when the system can switch the other on by itself.
+        var other = sibling(request.url);
+        var swap = other ? await caches.match(other) : null;
+        if (swap) return swap;
+        throw error;
       }
-      return fresh;
     })());
   }
 });

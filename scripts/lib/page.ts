@@ -632,8 +632,8 @@ ${filter ? `
  *
  * The worker is registered unconditionally: opening offline at all is the part that is broken
  * without it, and it costs nothing — the document and whatever images were actually looked at.
- * Keeping the whole almanac is the switch, because a run is about 18 MB across both themes and
- * there is a new one every hour.
+ * Keeping the whole almanac is the switch, because a run is 17 MB across both themes and there is
+ * a new one every hour. What the switch then fetches is one theme, about 8.5 MB.
  */
 function offlineScript(manifest: Manifest): string {
   return `
@@ -648,6 +648,31 @@ function offlineScript(manifest: Manifest): string {
   var mark = document.getElementById("keep-mark");
   var ageEl = document.getElementById("keep-age");
   if (!box || !button || !mark || !ageEl) return;
+
+  // **Only one theme is worth downloading.** A chart exists twice, light and dark, and half the
+  // eighteen megabytes is the half that is not on the screen. The URLs differ in one suffix, so the
+  // subset is a filter rather than a second list in the page — and the full list still goes with it,
+  // because eviction is judged against everything the run references, not against what was fetched.
+  //
+  // The theme can still change under a kept copy — the switch, or a system that goes dark at
+  // sunset — and offline nothing can be fetched then. That is the worker's problem and it falls
+  // back to the sibling image: the same forecast in the other colours, which is a great deal better
+  // than a broken chart. So this can narrow to one theme without a caveat.
+  function themeNow() {
+    var choice = "auto";
+    try {
+      var stored = localStorage.getItem("theme");
+      if (stored === "light" || stored === "dark") choice = stored;
+    } catch (error) { /* no storage, so the system's */ }
+    return choice !== "auto" ? choice
+      : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  }
+  function wanted() {
+    var drop = themeNow() === "dark" ? "-light.png" : "-dark.png";
+    // The maps carry a content hash and no theme suffix, so they survive this untouched — which is
+    // right, they are one sheet of terrain in both themes.
+    return URLS.filter(function (url) { return url.indexOf(drop) < 0; });
+  }
 
   function post(message) {
     navigator.serviceWorker.ready.then(function (registration) {
@@ -703,7 +728,7 @@ function offlineScript(manifest: Manifest): string {
     box.hidden = false;
     // Every load: the worker drops what this run no longer references, and refetches the run in
     // the background if the switch is on. The page does not wait for either.
-    post({ type: "refresh", urls: URLS });
+    post({ type: "refresh", urls: URLS, keep: wanted() });
   }).catch(function () {
     /* No worker, no offline. The page itself is unaffected, so say nothing. */
   });
@@ -712,7 +737,7 @@ function offlineScript(manifest: Manifest): string {
     var on = button.getAttribute("aria-pressed") === "true";
     show(!on);
     if (!on) ageEl.textContent = "\u2026";
-    post({ type: on ? "forget" : "keep", urls: URLS });
+    post({ type: on ? "forget" : "keep", urls: URLS, keep: wanted() });
   });
 
   navigator.serviceWorker.addEventListener("message", function (event) {
@@ -759,6 +784,22 @@ function offlineScript(manifest: Manifest): string {
     reload.setAttribute("aria-busy", "true");
     location.reload();
   });
+
+  // Changing the theme changes which half should be held. Only worth acting on while a copy is
+  // being kept and there is a connection to fetch the other half over — offline the sibling
+  // fallback already covers it, and there is nothing to download anyway. The listener is on the
+  // document so it runs after the theme switch's own handler has written the choice down.
+  function themeChanged() {
+    if (button.getAttribute("aria-pressed") !== "true") return;
+    if (!navigator.onLine) return;
+    ageEl.textContent = "\u2026";
+    post({ type: "keep", urls: URLS, keep: wanted() });
+  }
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (target && target.closest && target.closest("#theme button")) themeChanged();
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", themeChanged);
 
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState !== "visible") { tick(false); return; }
