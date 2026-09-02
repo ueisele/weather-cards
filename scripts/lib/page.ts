@@ -39,6 +39,20 @@ const ICONS = {
   kept: ICON(`<circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.6"/>`),
 } as const
 
+/**
+ * Where a model's own description lives.
+ *
+ * Editorial, so it sits here and not in the manifest: the renderer knows which models it drew and
+ * what they are called, and has no business holding an opinion about where a reader should go to
+ * find out what they are. Keyed by the manifest's slot, and a slot without an entry simply renders
+ * unlinked rather than breaking — a fourth model can appear before anyone has chosen a page for it.
+ */
+const MODEL_PAGES: Readonly<Record<string, string>> = {
+  met: "https://github.com/metno/NWPdocs/wiki/MEPS-model",
+  icon: "https://www.dwd.de/EN/research/weatherforecasting/num_modelling/01_num_weather_prediction_modells/icon_description.html",
+  ecmwf: "https://www.ecmwf.int/en/research/modelling-and-prediction",
+}
+
 function escape(value: unknown) {
   return String(value).replace(/[&<>"']/g, (character) => (
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]!
@@ -757,6 +771,16 @@ export function renderPage(manifest: Manifest): string {
     jumps.push(`<a href="#elsewhere">Elsewhere</a>`)
   }
 
+  // Named from what was drawn rather than from a sentence someone has to remember to edit. A place
+  // that could not be redrawn keeps older cards, so this reads the run's own first full set.
+  const cards = manifest.places.find((place) => place.models.length > 0)?.models ?? []
+  const models = cards.map((card) => {
+    const page = MODEL_PAGES[card.slot]
+    return page
+      ? `<a href="${escape(page)}" rel="noreferrer">${escape(card.title)}</a>`
+      : escape(card.title)
+  }).join(", ").replace(/, ([^,]*)$/, " and $1")
+
   const filter = manifest.places.length >= FILTER_THRESHOLD
   // Hidden until the script takes it over: without scripting neither control can do anything, and
   // a switch that does nothing is worse than no switch.
@@ -808,9 +832,9 @@ export function renderPage(manifest: Manifest): string {
   <div class="intro">
     <h1>${escape(manifest.site.title)}</h1>
     ${manifest.site.tagline ? `<p class="lede">${escape(manifest.site.tagline)}</p>` : ""}
-    <p class="lede">Each place is drawn once with all models together, and once per model. Where the
-      models disagree, the forecast is less certain than any one of them looks. Updated
-      ${escape(stamp(manifest.generated_at))}.</p>
+    <p class="lede">Each place is drawn once with all models together — ${models} — and once per
+      model. Where the models disagree, the forecast is less certain than any one of them looks.
+      Updated ${escape(stamp(manifest.generated_at))}.</p>
   </div>
   ${sections.join("\n  ")}
 </main>
