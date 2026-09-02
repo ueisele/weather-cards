@@ -748,7 +748,14 @@ function offlineScript(manifest: Manifest): string {
   navigator.serviceWorker.addEventListener("message", function (event) {
     var data = event.data || {};
     if (data.type === "status") show(data.keeping);
-    else if (data.type === "progress") { ageEl.textContent = Math.round(data.done / data.total * 100) + "%"; }
+    else if (data.type === "progress") {
+      // A refresh only runs when a copy is being kept, so progress is also the answer to "is the
+      // switch on" — and it arrives before any status would. Without this the button sits unlit
+      // through the whole download and the figure beside it reads as decoration.
+      button.setAttribute("aria-pressed", "true");
+      mark.innerHTML = MARK_KEPT;
+      ageEl.textContent = Math.round(data.done / data.total * 100) + "%";
+    }
     else if (data.type === "kept") show(true);
     // A refresh that gave up leaves whatever was already held; the chip goes back to describing
     // that rather than sitting on a percentage that stopped moving.

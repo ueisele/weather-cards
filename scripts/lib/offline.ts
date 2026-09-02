@@ -150,6 +150,11 @@ async function keepAll(urls, all) {
   var cache = await caches.open(CACHE);
   var got = 0;
   var missed = 0;
+  // **Before the first fetch, not after the fifth.** The page has no other way to know a refresh
+  // has started: on a load it posts refresh and then waits, and until something comes back the
+  // control still reads as off. Five URLs is a second or two on a phone, and a control that does
+  // nothing for two seconds is one that looks broken.
+  await report({ type: "progress", done: 0, total: urls.length });
   for (var i = 0; i < urls.length; i++) {
     try {
       var already = await cache.match(urls[i]);
