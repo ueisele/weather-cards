@@ -45,6 +45,13 @@ Two shortcuts worth knowing:
 - **`bun run page`** rebuilds `out/index.html` from the manifest a previous render left behind. The
   charts are the expensive part and they do not change when the layout does, so this keeps design
   iterations off the providers' APIs.
+
+  **Use it for anything that is not a redraw, and use it before deploying one.** Every chart carries
+  its run's `?v=` token, and every chart has the render time drawn into it — so `bun run render`
+  produces 86 new URLs whether or not a single forecast value moved. For a reader with the offline
+  copy switched on, that is 17.7 MB fetched again on the next reload. `bun run page` keeps the
+  manifest's `generated_at`, so the tokens are the same, so nothing is refetched: only `index.html`
+  actually differs. Measured after a one-sentence edit that was deployed the wrong way round.
 - **`WEATHER_CARDS_RENDERER=/path/to/dotfiles/15_opencode/plugins/web-research`** points at a working
   copy instead of the pinned checkout. A sibling `../dotfiles` is found without being told.
 
