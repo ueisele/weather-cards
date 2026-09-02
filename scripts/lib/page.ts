@@ -34,6 +34,7 @@ const ICONS = {
   light: ICON(`<circle cx="12" cy="12" r="4.2"/><path d="M12 3.2v1.9M12 18.9v1.9M4.6 12H2.7M21.3 12h-1.9M6.8 6.8L5.4 5.4M18.6 18.6l-1.4-1.4M6.8 17.2l-1.4 1.4M18.6 5.4l-1.4 1.4"/>`),
   dark: ICON(`<path d="M20 14.2A8.2 8.2 0 0 1 9.8 4a8.4 8.4 0 1 0 10.2 10.2z"/>`),
   top: ICON(`<path d="M12 19V6m0 0l-5 5M12 6l5 5"/>`),
+  reload: ICON(`<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.8 4.6v4.2h-4.2"/>`),
   keep: ICON(`<circle cx="12" cy="12" r="9"/><path d="M12 7v8m0 0l-3.2-3.2M12 15l3.2-3.2"/>`),
   kept: ICON(`<circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.6"/>`),
 } as const
@@ -398,10 +399,17 @@ h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
 /* The offline control borrows the theme switch's shape so the bar keeps one vocabulary. It is an
    icon and, once it holds a copy, how old that copy is — no word, because the bar has no room for
    one and the mark changes shape between the two states rather than only shade. */
-.offline {
+.offline, .reload {
   display: inline-flex; align-items: center; flex: 0 0 auto;
   border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--card);
 }
+.reload button {
+  font: inherit; display: inline-flex; padding: 0.3rem 0.42rem; border: 0;
+  background: transparent; color: var(--ink2); cursor: pointer;
+}
+.reload button:hover { color: var(--ink); }
+/* Held down while the page is on its way, so a tap that takes a moment does not look ignored. */
+.reload button[aria-busy="true"] { color: var(--ink); background: var(--line); }
 .offline button {
   font: inherit; font-size: 0.72rem; font-variant-numeric: tabular-nums;
   display: inline-flex; align-items: center; gap: 0.32rem;
@@ -674,6 +682,35 @@ function offlineScript(manifest: Manifest): string {
   setInterval(function () {
     if (button.getAttribute("aria-pressed") === "true") show(true);
   }, 300000);
+
+  // ------------------------------------------------------------- reloading ---
+  // **Installed to a home screen there is no address bar and no reload button**, and iOS often
+  // resumes a suspended page rather than loading it again — so an app opened on the fourth day of
+  // a walk can show the fourth day's forecast from the first day. Two answers, because they cover
+  // different moments: a button for "now", and a reload on return for "I did not think about it".
+  var reload = document.getElementById("reload");
+  if (reload) reload.addEventListener("click", function () {
+    reload.setAttribute("aria-busy", "true");
+    location.reload();
+  });
+
+  var STALE = 30 * 60 * 1000;   // a run is published hourly; half of that is old enough to matter
+  var QUIET = 10 * 60 * 1000;   // never twice in this window, so a stalled publish cannot loop
+  var loadedAt = Date.now();
+  function lastReload() {
+    try { return Number(sessionStorage.getItem("reloaded") || 0); } catch (error) { return 0; }
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState !== "visible") return;
+    // Offline the fetch would fall back to this same cache, so a reload would cost the scroll
+    // position and return nothing.
+    if (!navigator.onLine) return;
+    if (Date.now() - loadedAt < 60000) return;
+    if (Date.now() - lastReload() < QUIET) return;
+    if (Date.now() - Date.parse(GENERATED) < STALE) return;
+    try { sessionStorage.setItem("reloaded", String(Date.now())); } catch (error) { /* private mode */ }
+    location.reload();
+  });
 })();
 `
 }
@@ -741,6 +778,9 @@ export function renderPage(manifest: Manifest): string {
   <div class="bar-inner">
     <div class="bar-top">
     ${filter ? `<input id="filter" class="filter hidden" type="search" placeholder="Filter places" aria-label="Filter places">` : ""}
+    <div class="reload">
+      <button type="button" id="reload" aria-label="Reload for the newest forecast">${ICONS.reload}</button>
+    </div>
     ${theme}
     <div class="offline" id="offline" hidden>
       <button type="button" id="keep" aria-pressed="false" aria-label="Keep this site offline">
