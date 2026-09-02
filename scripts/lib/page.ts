@@ -778,14 +778,14 @@ export function renderPage(manifest: Manifest): string {
   <div class="bar-inner">
     <div class="bar-top">
     ${filter ? `<input id="filter" class="filter hidden" type="search" placeholder="Filter places" aria-label="Filter places">` : ""}
-    <div class="reload">
-      <button type="button" id="reload" aria-label="Reload for the newest forecast">${ICONS.reload}</button>
-    </div>
     ${theme}
     <div class="offline" id="offline" hidden>
       <button type="button" id="keep" aria-pressed="false" aria-label="Keep this site offline">
         <span class="mark" id="keep-mark">${ICONS.keep}</span><span class="age" id="keep-age"></span>
       </button>
+    </div>
+    <div class="reload">
+      <button type="button" id="reload" aria-label="Reload for the newest forecast">${ICONS.reload}</button>
     </div>
     <nav class="jump" aria-label="Sections">${jumps.join("")}</nav>
     </div>
