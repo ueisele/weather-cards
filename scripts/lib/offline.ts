@@ -108,6 +108,8 @@ export const WORKER_SOURCE = `
 
 var CACHE = "almanac";
 var STATE = "https://almanac.invalid/keep";
+// Where a new run's page waits until the run behind it is actually held. See promote().
+var STAGED = "https://almanac.invalid/staged";
 
 async function keeping() {
   var cache = await caches.open(CACHE);
@@ -172,6 +174,10 @@ async function keepAll(urls, all) {
       // The check before this one catches the honest case cheaply; this one catches the rest.
       missed++;
       if (missed >= 3) {
+        // The parked page belongs to a run that did not arrive. Dropping it is not required —
+        // the next load parks a new one over it — but leaving 70 KB of a page nobody will ever
+        // be shown is untidy in the one place where space is someone else's phone.
+        await cache.delete(STAGED);
         await report({ type: "stalled", done: i + 1, total: urls.length, got: got });
         return;
       }
@@ -187,7 +193,10 @@ async function keepAll(urls, all) {
   // differ by a theme: only one is downloaded, but the other's images are legitimate — opportunistic
   // copies of charts that were actually looked at, and the sibling a switched theme falls back on.
   // Evicting by the fetch list would delete them on the next load.
-  if (complete) await evict(all || urls);
+  if (complete) {
+    await promote();
+    await evict(all || urls);
+  }
   await report({ type: "kept", total: urls.length, got: got, complete: complete });
 }
 
@@ -201,6 +210,45 @@ function sibling(href) {
   if (/-dark\\.(png|webp)/.test(href)) return href.replace(/-dark\\.(png|webp)/, "-light.$1");
   if (/-light\\.(png|webp)/.test(href)) return href.replace(/-light\\.(png|webp)/, "-dark.$1");
   return null;
+}
+
+/**
+ * **The page and the images it names change together, or not at all.**
+ *
+ * Without this the swap is not atomic and the reader loses by it. The document is network-first, so
+ * a reload writes the new page into the cache immediately — and the new page names URLs with a new
+ * \`?v=\` on every one of them. If the signal then dies at image twenty of forty-three, the cache
+ * holds a page pointing at twenty-three things that are not there. The previous run's images are
+ * still on disk, untouched, and unreachable: nothing names them any more.
+ *
+ * So a fresh page is parked here instead, and only becomes *the* page once its run has been
+ * fetched. A refresh that breaks off leaves the cache exactly as it was — the previous page, the
+ * previous images, complete and consistent — and tries again on the next load.
+ *
+ * Only while a copy is being kept. With the switch off there is no run to be consistent with, the
+ * reader holds whatever they happened to look at, and parking the page would just make it stale.
+ */
+async function stage(response, url) {
+  var headers = new Headers(response.headers);
+  // The cache key cannot be the document's own URL — that is the entry being protected — so the
+  // address it is destined for rides along inside it.
+  headers.set("x-document-url", url);
+  var body = await response.blob();
+  var cache = await caches.open(CACHE);
+  await cache.put(new Request(STAGED), new Response(body, {
+    status: response.status, statusText: response.statusText, headers: headers,
+  }));
+}
+
+async function promote() {
+  var cache = await caches.open(CACHE);
+  var staged = await cache.match(STAGED);
+  if (!staged) return false;
+  var url = staged.headers.get("x-document-url");
+  await cache.delete(STAGED);
+  if (!url) return false;
+  await cache.put(new Request(url), staged);
+  return true;
 }
 
 /** One \`cache.keys()\` and a set, rather than a \`match\` per URL: the answer is the same and it is
@@ -256,10 +304,30 @@ self.addEventListener("fetch", function (event) {
   // something to open.
   if (request.mode === "navigate") {
     event.respondWith((async function () {
+      // **Offline, do not even ask.** The document is served with max-age=300, so for five minutes
+      // after a reload the browser's own HTTP cache can answer \`fetch\` without a network — and
+      // that answer would be the new page whose images were never fetched. Going straight to the
+      // cache here is what keeps the swap atomic in the minutes when it matters most.
+      if (!navigator.onLine) {
+        var offline = await caches.match(request, { ignoreSearch: true });
+        if (offline) return offline;
+      }
       try {
-        var fresh = await fetch(request);
+        // **no-store, and it is not tidiness.** The document carries max-age=300, so for five
+        // minutes after a load the browser's own HTTP cache answers a plain fetch with no network
+        // at all — measured: offline, fetch("/") returns 200 while fetch("/", {cache:"no-store"})
+        // fails. That 200 is the new page, whose images were never fetched, and serving it is the
+        // half-swapped state this whole mechanism exists to prevent. Nothing is lost by asking:
+        // the document is network-first anyway, and the check above means we only get here with a
+        // connection worth trying.
+        var fresh = await fetch(request.url, {
+          cache: "no-store", credentials: "same-origin", redirect: "follow",
+        });
         var cache = await caches.open(CACHE);
-        await cache.put(request, fresh.clone());
+        var held = await caches.match(request, { ignoreSearch: true });
+        // Nothing to protect yet, or nothing promised: cache it and be done. Otherwise it waits.
+        if (!held || !(await keeping())) await cache.put(request, fresh.clone());
+        else await stage(fresh.clone(), request.url);
         return fresh;
       } catch (error) {
         var cached = await caches.match(request, { ignoreSearch: true });
@@ -292,6 +360,11 @@ self.addEventListener("fetch", function (event) {
         var other = sibling(request.url);
         var swap = other ? await caches.match(other) : null;
         if (swap) return swap;
+        // And failing that, any run's copy of the same image: the URL differs only in its \`?v=\`,
+        // so ignoring the query finds the one held before this run. A forecast an hour older beats
+        // a hole in the page, and this is the net under the 80 % that lets a refresh count as done.
+        var older = await caches.match(request, { ignoreSearch: true });
+        if (older) return older;
         throw error;
       }
     })());
