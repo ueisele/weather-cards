@@ -32,6 +32,14 @@
       "note": "Valley floor at the northern start; forest, per Kartverket dtm1"
     },
     {
+      "id": "fjellskardet",
+      "name": "Fjellskardet",
+      "latitude": 65.77649,
+      "longitude": 13.06628,
+      "elevation_m": 505,
+      "note": "Pass west of Tverrådalen; open ground, 504.7 m per Kartverket dtm1"
+    },
+    {
       "id": "burrienvaerie",
       "name": "Burrienvaerie",
       "latitude": 65.69951,
@@ -114,14 +122,14 @@
     {
       "id": "northern-section",
       "name": "Northern section",
-      "note": "Northern start, mountain proxy, quay and next high point in the stated route sequence.",
-      "places": ["tverradalen", "burrienvaerie", "bona-hurtigbatkai", "stigfjellet"]
+      "note": "Northern start, the pass west of it, mountain proxy and quay, in the stated route sequence.",
+      "places": ["tverradalen", "fjellskardet", "burrienvaerie", "bona-hurtigbatkai"]
     },
     {
       "id": "central-section",
       "name": "Central section",
-      "note": "Two high-terrain proxies followed by the Lomsdalen valley point.",
-      "places": ["eiterafjellet", "visttindan", "lomsdalen"]
+      "note": "Three high-terrain proxies followed by the Lomsdalen valley point. Stigfjellet sits here rather than north of it because a group holds at most four.",
+      "places": ["stigfjellet", "eiterafjellet", "visttindan", "lomsdalen"]
     },
     {
       "id": "southern-section",
