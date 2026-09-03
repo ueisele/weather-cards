@@ -21,9 +21,6 @@ import { iconUrl, offlineUrls, WEBMANIFEST_KEY, WORKER_KEY } from "./offline"
 const CHART_WIDTH = 1920
 const CHART_HEIGHT = 1510
 
-/** Below this many places a filter box is furniture; above it, it is the only way to find one. */
-const FILTER_THRESHOLD = 12
-
 /** Drawn, not typed. A Unicode moon or sun is a font question — measured once as an empty box —
  *  and these have to be legible at 19 px on a phone in daylight. */
 const ICON = (paths: string) => `<svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"` +
@@ -263,7 +260,7 @@ function place(entry: PlaceEntry, generatedAt: string, priority: Priority) {
     card.title, priority,
   )).join("\n  ")}
 </details>`
-  return `<section class="place" id="${escape(entry.id)}" data-name="${escape(entry.name.toLowerCase())}">
+  return `<section class="place" id="${escape(entry.id)}">
   <h3><a href="#${escape(entry.id)}">${escape(entry.name)}</a></h3>
   <p class="facts">${facts.map((fact) => `<span>${escape(fact)}</span>`).join("<span class=\"dot\">·</span>")}</p>
   ${age(entry, generatedAt)}
@@ -393,11 +390,6 @@ h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
 /* The same chip, holding a mark instead of a word; the flex box keeps the svg off the baseline. */
 .jump a.to-top { display: inline-flex; align-items: center; padding: 0.4rem 0.62rem; }
 .jump a:hover, .jump a:focus-visible { color: var(--accent); }
-.filter {
-  font: inherit; font-size: 0.82rem; padding: 0.3rem 0.6rem;
-  border: 1px solid var(--line); border-radius: 6px;
-  background: var(--card); color: var(--ink); min-width: 12ch;
-}
 
 /* Three states, not two: "Auto" has to be reachable again once it has been left. */
 .theme {
@@ -533,7 +525,6 @@ footer p { margin: 0 0 0.5rem; max-width: 72ch; }
 footer a { color: var(--ink2); }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
-.hidden { display: none; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 `
 
@@ -552,7 +543,7 @@ const HEAD_SCRIPT = `
 })();
 `
 
-function bodyScript(filter: boolean) {
+function bodyScript() {
   return `
 (function () {
   var root = document.documentElement;
@@ -608,22 +599,7 @@ function bodyScript(filter: boolean) {
   // The system theme can change while the page is open, and in "auto" that has to be followed.
   system.addEventListener("change", function () { if (stored() === "auto") apply("auto"); });
   apply(stored());
-${filter ? `
-  var box = document.getElementById("filter");
-  if (box) {
-    box.classList.remove("hidden");
-    box.addEventListener("input", function () {
-      var needle = box.value.trim().toLowerCase();
-      document.querySelectorAll(".place").forEach(function (section) {
-        var match = !needle || (section.dataset.name || "").indexOf(needle) !== -1;
-        section.classList.toggle("hidden", !match);
-      });
-      document.querySelectorAll(".group").forEach(function (section) {
-        section.classList.toggle("hidden", !section.querySelector(".place:not(.hidden)"));
-      });
-    });
-  }
-` : ""}})();
+})();
 `
 }
 
@@ -863,7 +839,6 @@ export function renderPage(manifest: Manifest): string {
       : escape(card.title)
   }).join(", ").replace(/, ([^,]*)$/, " and $1")
 
-  const filter = manifest.places.length >= FILTER_THRESHOLD
   // Hidden until the script takes it over: without scripting neither control can do anything, and
   // a switch that does nothing is worse than no switch.
   const theme = `<div class="theme" id="theme" role="group" aria-label="Colour theme" hidden>${
@@ -896,7 +871,6 @@ export function renderPage(manifest: Manifest): string {
 <div class="bar">
   <div class="bar-inner">
     <div class="bar-top">
-    ${filter ? `<input id="filter" class="filter hidden" type="search" placeholder="Filter places" aria-label="Filter places">` : ""}
     ${theme}
     <div class="offline" id="offline" hidden>
       <button type="button" id="keep" aria-pressed="false" aria-label="Keep this site offline">
@@ -931,7 +905,7 @@ export function renderPage(manifest: Manifest): string {
      ${escape(manifest.renderer_commit)}. Published from
      <a href="https://github.com/ueisele/weather-cards">weather-cards</a>.</p>
 </footer>
-<script>${bodyScript(filter)}</script>
+<script>${bodyScript()}</script>
 <script>${offlineScript(manifest)}</script>
 </body>
 </html>
