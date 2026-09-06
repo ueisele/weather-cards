@@ -34,8 +34,18 @@ const PADDING = 0.25
 /**
  * The smallest area a map is drawn over. Two places a kilometre apart would otherwise be rendered
  * at a scale where the terrain that explains their weather is off the edge.
+ *
+ * **It was 25 km, and at that value it governed every map rather than the degenerate one.** All
+ * five route sections came out at exactly 37.5 km and 19.5 m per pixel — a section whose places
+ * span 4.7 km drawn at the same scale as one spanning 19.1, with the near ones huddled in the
+ * middle of a frame mostly about somewhere else. A floor for the pathological case should not be
+ * the rule for the ordinary one.
+ *
+ * At 10 km the two east–west sections come out at 15 km wide, which still holds the fjord and the
+ * tops around it, and the sections differ from each other again. The two north–south ones barely
+ * move: their extent is set by fitting a 1920 × 1510 frame, not by this.
  */
-const MIN_GROUND_WIDTH_M = 25_000
+const MIN_GROUND_WIDTH_M = 10_000
 
 /** Roughly what Kartverket's topo layer covers: the mainland and Svalbard. Outside it, sea. */
 const NORWAY = { south: 57, north: 81.5, west: 3, east: 36 } as const
