@@ -111,6 +111,18 @@ var STATE = "https://almanac.invalid/keep";
 // Where a new run's page waits until the run behind it is actually held. See promote().
 var STAGED = "https://almanac.invalid/staged";
 
+/** How long the page is allowed to wait for the network before the held copy is shown instead.
+ *
+ * **A radio that is attached but has no route does not fail — it hangs.** navigator.onLine is true,
+ * because an interface is up, so the check for it does not fire; the document is network-first and
+ * asks; and nothing comes back. Measured with packets to the server dropped rather than refused:
+ * the page had not opened after sixty seconds. Refused is not the same case and is not the one a
+ * phone is in on a mountain — it fails in fifty milliseconds and was why this went unnoticed.
+ *
+ * Two and a half seconds is long enough that a working connection almost always wins the race —
+ * the document is 70 KB — and short enough that a dead one is not something you sit through. */
+var DOCUMENT_WAIT_MS = 2500;
+
 async function keeping() {
   var cache = await caches.open(CACHE);
   var answer = await cache.match(STATE);
@@ -308,30 +320,43 @@ self.addEventListener("fetch", function (event) {
       // after a reload the browser's own HTTP cache can answer \`fetch\` without a network — and
       // that answer would be the new page whose images were never fetched. Going straight to the
       // cache here is what keeps the swap atomic in the minutes when it matters most.
-      if (!navigator.onLine) {
-        var offline = await caches.match(request, { ignoreSearch: true });
-        if (offline) return offline;
-      }
-      try {
-        // **no-store, and it is not tidiness.** The document carries max-age=300, so for five
-        // minutes after a load the browser's own HTTP cache answers a plain fetch with no network
-        // at all — measured: offline, fetch("/") returns 200 while fetch("/", {cache:"no-store"})
-        // fails. That 200 is the new page, whose images were never fetched, and serving it is the
-        // half-swapped state this whole mechanism exists to prevent. Nothing is lost by asking:
-        // the document is network-first anyway, and the check above means we only get here with a
-        // connection worth trying.
+      var held = await caches.match(request, { ignoreSearch: true });
+      // Cheap and certain: when the flag says there is nothing, there is nothing.
+      if (!navigator.onLine && held) return held;
+
+      // **Nothing to fall back on means waiting is the only option.** A first visit has no held
+      // page, so however long the network takes is how long it takes; the alternative is an error
+      // where a slow answer would have done.
+      var stale = false;
+      var network = (async function () {
         var fresh = await fetch(request.url, {
           cache: "no-store", credentials: "same-origin", redirect: "follow",
         });
+        // **Too late to be the page, so leave the cache alone.** The held copy has already been
+        // served, and the page it belongs to is about to hand the worker that run's URL list. Stage
+        // this one and the next keepAll would promote a document whose images were never fetched —
+        // the exact half-swapped state staging exists to prevent. Dropping 70 KB is the cheap side
+        // of that trade, and the next load asks again.
+        if (stale) return fresh;
         var cache = await caches.open(CACHE);
-        var held = await caches.match(request, { ignoreSearch: true });
-        // Nothing to protect yet, or nothing promised: cache it and be done. Otherwise it waits.
         if (!held || !(await keeping())) await cache.put(request, fresh.clone());
         else await stage(fresh.clone(), request.url);
         return fresh;
+      })();
+
+      if (held) {
+        var answer = await Promise.race([
+          network.catch(function () { return null; }),
+          new Promise(function (resolve) { setTimeout(function () { resolve(null); }, DOCUMENT_WAIT_MS); }),
+        ]);
+        if (answer) return answer;
+        stale = true;
+        return held;
+      }
+
+      try {
+        return await network;
       } catch (error) {
-        var cached = await caches.match(request, { ignoreSearch: true });
-        if (cached) return cached;
         return new Response("Offline, and this page has not been opened here before.\\n",
           { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } });
       }
