@@ -127,6 +127,38 @@
       "note": "Higher Breivatnet lake point"
     },
     {
+      "id": "stavassgarden",
+      "name": "Stavassgården",
+      "latitude": 65.48718,
+      "longitude": 13.29157,
+      "elevation_m": 269,
+      "note": "Tourist cabin in Stavvassdalen, so registered by Kartverket; 269.2 m, open ground"
+    },
+    {
+      "id": "elgviddevatnet",
+      "name": "Elgviddevatnet",
+      "latitude": 65.41364,
+      "longitude": 13.08469,
+      "elevation_m": 626,
+      "note": "625.7 m on open ground. Kartverket has no name here; the nearest is the plateau Sarvejællan Åarjelguevtele, 'sarve' being South Sámi for elk"
+    },
+    {
+      "id": "reine",
+      "name": "Reine",
+      "latitude": 67.93247,
+      "longitude": 13.08877,
+      "elevation_m": 12,
+      "note": "The village on Moskenesøya; 12.2 m per Kartverket dtm1"
+    },
+    {
+      "id": "markan",
+      "name": "Markan",
+      "latitude": 68.00802,
+      "longitude": 13.02280,
+      "elevation_m": 396,
+      "note": "Mountain in Lofotodden nasjonalpark, 8 km north of Reine; 396.3 m, open ground"
+    },
+    {
       "id": "tosbotnet",
       "name": "Tosbotnet",
       "latitude": 65.32603,
@@ -172,6 +204,18 @@
       "name": "Southern section",
       "note": "Lower and higher Breivatnet points followed by the southern endpoint.",
       "places": ["nedre-breivatnet", "midtre-breivatnet", "tosbotnet"]
+    },
+    {
+      "id": "eastern-section",
+      "name": "Eastern section",
+      "note": "Stavassgården and the plateau south-west of it, east of the Breivatnet points and at much the same latitude.",
+      "places": ["stavassgarden", "elgviddevatnet"]
+    },
+    {
+      "id": "lofoten",
+      "name": "Lofoten",
+      "note": "Not the route: Reine on Moskenesøya and the mountain above it, 250 km north. Last, so the route reads through from Entrance to Eastern without a detour.",
+      "places": ["reine", "markan"]
     }
   ]
 }
