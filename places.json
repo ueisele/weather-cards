@@ -24,6 +24,22 @@
       "note": "Town at the head of the Vefsnfjord, nearest the northern start"
     },
     {
+      "id": "mo-i-rana",
+      "name": "Mo i Rana",
+      "latitude": 66.31110,
+      "longitude": 14.13870,
+      "elevation_m": 13,
+      "note": "Town on the Ranfjord, between Trondheim and Bodø; 13.1 m per Kartverket dtm1"
+    },
+    {
+      "id": "bodo",
+      "name": "Bodø",
+      "latitude": 67.28443,
+      "longitude": 14.38175,
+      "elevation_m": 9,
+      "note": "Town at the northern end of the way in, and the crossing to Lofoten; 8.9 m per Kartverket dtm1"
+    },
+    {
       "id": "tverradalen",
       "name": "Tverrådalen",
       "latitude": 65.78504,
@@ -172,8 +188,8 @@
     {
       "id": "entrance",
       "name": "Entrance",
-      "note": "The two towns on the way in. Far apart and far from the route, so this map is drawn at a much smaller scale than the others.",
-      "places": ["trondheim", "mosjoen"]
+      "note": "The towns on the way in, south to north. Far apart and far from the route, so this map is drawn at a much smaller scale than the others. Four is the most a comparison draws, so this section is now full.",
+      "places": ["trondheim", "mosjoen", "mo-i-rana", "bodo"]
     },
     {
       "id": "northern-section",
