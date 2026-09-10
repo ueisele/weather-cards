@@ -19,7 +19,7 @@ import { iconUrl, offlineUrls, WEBMANIFEST_KEY, WORKER_KEY } from "./offline"
 
 /** The chart canvas. Given on every image so the page reserves the space before one arrives. */
 const CHART_WIDTH = 1920
-const CHART_HEIGHT = 1936
+const CHART_HEIGHT = 1958
 
 /** Drawn, not typed. A Unicode moon or sun is a font question — measured once as an empty box —
  *  and these have to be legible at 19 px on a phone in daylight. */
