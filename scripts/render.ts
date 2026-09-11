@@ -396,6 +396,14 @@ const manifest: Manifest = {
   site: site.identity,
   places,
   groups,
+  // Passed straight through. A region changes nothing about what is fetched or drawn -- it is the
+  // page's outline, and the whole of its effect is which sections a visitor sees at once.
+  regions: site.regions.map((region) => ({
+    id: region.id,
+    name: region.name,
+    ...(region.note === undefined ? {} : { note: region.note }),
+    group_ids: region.groups.map((group) => group.id),
+  })),
 }
 await Bun.write(join(out, MANIFEST_KEY), JSON.stringify(manifest, null, 2) + "\n")
 await Bun.write(join(out, PAGE_KEY), renderPage(manifest))

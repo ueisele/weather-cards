@@ -73,6 +73,20 @@ export type GroupEntry = Readonly<{
   problem?: string
 }>
 
+/**
+ * A region and the groups it holds, in order. Only a grouping: nothing here is drawn, and moving a
+ * group from one region to another changes no object in the bucket.
+ *
+ * A group the run could neither draw nor carry over is absent from `groups`, so a region may name
+ * one that is not there. The page drops what it cannot find rather than leaving a hole.
+ */
+export type RegionEntry = Readonly<{
+  id: string
+  name: string
+  note?: string
+  group_ids: readonly string[]
+}>
+
 export type Manifest = Readonly<{
   schema_version: number
   generated_at: string
@@ -80,6 +94,9 @@ export type Manifest = Readonly<{
   site: SiteIdentity
   places: readonly PlaceEntry[]
   groups: readonly GroupEntry[]
+  /** Additive, so no schema bump: the previous manifest is read only to carry entries over, and one
+   *  written before regions existed still answers that question. An empty list renders as one page. */
+  regions: readonly RegionEntry[]
 }>
 
 /** A compact stamp, used as the `?v=` token. Same instant as `generated_at`, fewer characters. */

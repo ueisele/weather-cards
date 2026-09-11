@@ -14,7 +14,7 @@
  * once, and only the image actually shown is ever fetched.
  */
 import type { Theme } from "./config"
-import type { Card, GroupEntry, Manifest, MapCard, PlaceEntry } from "./manifest"
+import type { Card, GroupEntry, Manifest, MapCard, PlaceEntry, RegionEntry } from "./manifest"
 import { iconUrl, offlineUrls, WEBMANIFEST_KEY, WORKER_KEY } from "./offline"
 
 /** The chart canvas. Given on every image so the page reserves the space before one arrives. */
@@ -34,6 +34,7 @@ const ICONS = {
   reload: ICON(`<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.8 4.6v4.2h-4.2"/>`),
   keep: ICON(`<circle cx="12" cy="12" r="9"/><path d="M12 7v8m0 0l-3.2-3.2M12 15l3.2-3.2"/>`),
   kept: ICON(`<circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.6"/>`),
+  menu: ICON(`<path d="M4 7h16M4 12h16M4 17h16"/>`),
 } as const
 
 /**
@@ -246,7 +247,9 @@ function age(entry: { issued_at: string; problem?: string }, generatedAt: string
 </p>`
 }
 
-function place(entry: PlaceEntry, generatedAt: string, priority: Priority) {
+/** `level` because a region holding one group has no group heading, and a heading level skipped
+ *  is a heading level a screen reader reports as a missing section. */
+function place(entry: PlaceEntry, generatedAt: string, priority: Priority, level: 3 | 4) {
   const facts = [
     coordinates(entry.latitude, entry.longitude),
     entry.elevation_m === undefined ? undefined : `${entry.elevation_m} m`,
@@ -261,7 +264,7 @@ function place(entry: PlaceEntry, generatedAt: string, priority: Priority) {
   )).join("\n  ")}
 </details>`
   return `<section class="place" id="${escape(entry.id)}">
-  <h3><a href="#${escape(entry.id)}">${escape(entry.name)}</a></h3>
+  <h${level}><a href="#${escape(entry.id)}">${escape(entry.name)}</a></h${level}>
   <p class="facts">${facts.map((fact) => `<span>${escape(fact)}</span>`).join("<span class=\"dot\">·</span>")}</p>
   ${age(entry, generatedAt)}
   ${entry.map ? mapFigure(entry.map, "Where it is.") : ""}
@@ -274,10 +277,19 @@ function place(entry: PlaceEntry, generatedAt: string, priority: Priority) {
 </section>`
 }
 
-function group(entry: GroupEntry, members: readonly PlaceEntry[], generatedAt: string, priority: Priority) {
+/**
+ * One group, and everything in it.
+ *
+ * **A region holding a single group drops the group's heading.** "Lofoten" under "Lofoten" says
+ * nothing twice, and the chip that would jump to it would be the only chip in the row. The id stays
+ * on the section either way, so a link written when the group had a heading still lands on it — and
+ * so does the stamp, which is about this chart and not about the region.
+ */
+function group(entry: GroupEntry, members: readonly PlaceEntry[], generatedAt: string,
+               priority: Priority, solo: boolean) {
   return `<section class="group" id="${escape(entry.id)}">
   <header class="group-head">
-    <h2><a href="#${escape(entry.id)}">${escape(entry.name)}</a></h2>
+    ${solo ? "" : `<h3><a href="#${escape(entry.id)}">${escape(entry.name)}</a></h3>`}
     ${entry.note ? `<p class="lede">${escape(entry.note)}</p>` : ""}
     ${age(entry, generatedAt)}
   </header>
@@ -287,7 +299,26 @@ function group(entry: GroupEntry, members: readonly PlaceEntry[], generatedAt: s
     `${entry.name}: ${members.map((member) => member.name).join(", ")} compared, one model.`,
     `${entry.place_ids.length} places, one model (${entry.comparison_model})`, priority,
   )}
-  ${members.map((member) => place(member, generatedAt, priority)).join("\n  ")}
+  ${members.map((member) => place(member, generatedAt, priority, solo ? 3 : 4)).join("\n  ")}
+</section>`
+}
+
+/**
+ * A region: a heading, and the groups it holds.
+ *
+ * **The wrapper is the whole mechanism.** `data-region` on the section and one generated rule per
+ * region is all the switching there is — the script sets a single attribute on `<html>` and CSS
+ * does the rest, before the first paint and without touching a node. Which also means that with
+ * scripting off no attribute is ever set, no rule ever matches, and the page is what it has always
+ * been: every region in one column, to be scrolled.
+ */
+function region(entry: RegionEntry, inner: string, titled: boolean) {
+  return `<section class="region" data-region="${escape(entry.id)}">
+  ${titled ? `<header class="region-head">
+    <h2>${escape(entry.name)}</h2>
+    ${entry.note ? `<p class="lede">${escape(entry.note)}</p>` : ""}
+  </header>` : ""}
+  ${inner}
 </section>`
 }
 
@@ -343,6 +374,11 @@ const STYLE = `
 :root[data-theme="light"] { color-scheme: light; }
 
 * { box-sizing: border-box; }
+/* **The hidden attribute has to win.** The browser's own rule for it is a type selector and loses
+   to any class rule that sets a display — .theme sets inline-flex, and so do three others here.
+   Measured with scripting off: all four controls were hidden in the markup and on the screen
+   anyway, including a theme switch that could not switch anything. */
+[hidden] { display: none !important; }
 body {
   margin: 0;
   background: var(--ground);
@@ -351,7 +387,7 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 a { color: inherit; }
-h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
+h1, h2, h3, h4 { text-wrap: balance; letter-spacing: -0.011em; }
 
 .bar {
   position: sticky; top: 0; z-index: 10;
@@ -363,6 +399,9 @@ h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
 .bar-inner {
   max-width: 1180px; margin: 0 auto; padding: 0.45rem 1.25rem;
   display: flex; align-items: center; gap: 0.5rem;
+  /* What the region list hangs from. The list is not inside the scrolling chip row: there it would
+     be cut off by the row's own mask within a character or two of opening. */
+  position: relative;
 }
 /* **Not flex-wrap.** Wrapping happens before shrinking, so a long title would push the offline
    control onto a third line rather than shorten itself. A row that cannot wrap has to shrink. */
@@ -390,6 +429,38 @@ h1, h2, h3 { text-wrap: balance; letter-spacing: -0.011em; }
 /* The same chip, holding a mark instead of a word; the flex box keeps the svg off the baseline. */
 .jump a.to-top { display: inline-flex; align-items: center; padding: 0.4rem 0.62rem; }
 .jump a:hover, .jump a:focus-visible { color: var(--accent); }
+
+/* **The region switch is a chip, and it scrolls away with them.** It is the first stop in the list
+   of places this page can take you, not a control bolted to the edge of the bar — and putting it
+   here rather than in a second row is what keeps the bar one row tall on a phone. It carries the
+   name of the region being read, which is the only thing on screen that says which one that is. */
+.jump .region-chip {
+  font: inherit; font-size: 0.95rem; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 0.36rem;
+  color: var(--ink); white-space: nowrap; cursor: pointer;
+  padding: 0.4rem 0.72rem 0.4rem 0.6rem; margin-right: 0.4rem;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--card);
+  /* **Never shrink.** Hiding the overflow is what caps a long name, and it also sets a flex item's
+     automatic minimum size to zero — so in the scrolling row this collapsed to the icon and the
+     name disappeared entirely. Measured at 390 px: 23 px wide, holding fourteen characters. */
+  flex: 0 0 auto; max-width: 15rem; overflow: hidden;
+}
+.jump .region-chip .here { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.jump .region-chip[aria-expanded="true"] { background: var(--line); }
+.region-list {
+  position: absolute; top: calc(100% + 0.3rem); left: 1.25rem; z-index: 11;
+  min-width: 13rem; max-width: calc(100% - 2.5rem);
+  display: flex; flex-direction: column; gap: 0.1rem;
+  padding: 0.3rem; background: var(--card);
+  border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 12px 30px #00000024;
+}
+.region-list a {
+  text-decoration: none; color: var(--ink2); font-size: 0.95rem;
+  padding: 0.5rem 0.7rem; border-radius: 7px; white-space: nowrap;
+}
+.region-list a:hover, .region-list a:focus-visible { color: var(--ink); background: var(--ground); }
+.region-list a[aria-current] { color: var(--ink); font-weight: 640; background: var(--ground); }
 
 /* Three states, not two: "Auto" has to be reachable again once it has been left. */
 .theme {
@@ -451,14 +522,17 @@ main { max-width: 1180px; margin: 0 auto; padding: 2.25rem 1.25rem 5rem; }
 .intro { margin: 0 0 2.5rem; }
 .intro h1 { font-size: 1.6rem; margin: 0; }
 
+.region-head { margin: 0 0 2rem; }
+.region-head h2 { font-size: 1.35rem; margin: 0; }
+
 .group { margin: 0 0 3.5rem; scroll-margin-top: 4.5rem; }
 .group-head { margin: 0 0 1rem; padding-top: 0.5rem; }
-.group-head h2 { font-size: 1.15rem; margin: 0; }
-.group-head h2 a, .place h3 a { text-decoration: none; }
-.group-head h2 a:hover, .place h3 a:hover { text-decoration: underline; }
+.group-head h3 { font-size: 1.15rem; margin: 0; }
+.group-head h3 a, .place h3 a, .place h4 a { text-decoration: none; }
+.group-head h3 a:hover, .place h3 a:hover, .place h4 a:hover { text-decoration: underline; }
 
 .place { margin: 2.5rem 0 0; scroll-margin-top: 4.5rem; }
-.place h3 { font-size: 1.02rem; margin: 0; }
+.place h3, .place h4 { font-size: 1.02rem; margin: 0; }
 .facts { margin: 0.2rem 0 0; color: var(--ink2); font-size: 0.85rem; }
 .facts .dot { color: var(--muted); margin: 0 0.45rem; }
 .facts span:first-child { font-variant-numeric: tabular-nums; }
@@ -529,19 +603,104 @@ footer a { color: var(--ink2); }
 `
 
 /**
- * Applied before the first paint, so an overridden theme does not arrive as a flash of the other
- * one. Everything else the page needs runs at the end; this is the only thing that cannot wait.
+ * Applied before the first paint. Everything else the page needs runs at the end; these two cannot
+ * wait, and for the same reason: the alternative to settling them here is the page arriving as one
+ * thing and becoming another — a flash of the wrong theme, or every region drawn and then all but
+ * one taken away again.
+ *
+ * **The region is resolved here because the browser scrolls to the fragment before any of the body
+ * script runs.** A link to `#markan` would otherwise arrive with Markan still hidden, the scroll
+ * would find nothing, and the page would open at the top of a region the link never named.
+ *
+ * `order` is the menu order and its first entry is the default. `holds` maps every group and place
+ * id to the region containing it, which is what turns an ordinary anchor into a region as well.
  */
-const HEAD_SCRIPT = `
+function headScript(order: readonly string[], holds: Readonly<Record<string, string>>) {
+  return `
 (function () {
+  var root = document.documentElement;
   try {
     var choice = localStorage.getItem("theme");
-    if (choice === "light" || choice === "dark") document.documentElement.dataset.theme = choice;
+    if (choice === "light" || choice === "dark") root.dataset.theme = choice;
   } catch (error) {
     /* A browser that refuses storage still gets the system's theme, which is the default anyway. */
   }
+  var ORDER = ${JSON.stringify(order)};
+  var HOLDS = ${JSON.stringify(holds)};
+  if (ORDER.length === 0) return;
+  var hash = decodeURIComponent(location.hash.slice(1));
+  // "r/<id>" names a region and nothing else: it matches no element, so a browser without scripting
+  // simply ignores it — and with scripting it never competes with an anchor for the one fragment.
+  var pick = hash.slice(0, 2) === "r/" ? hash.slice(2) : HOLDS[hash];
+  if (!pick) { try { pick = localStorage.getItem("region"); } catch (error) { /* the default, then */ } }
+  root.dataset.region = ORDER.indexOf(pick) < 0 ? ORDER[0] : pick;
 })();
 `
+}
+
+/** The switch itself: the menu, and every other way a region can change. */
+function regionScript(order: readonly string[], holds: Readonly<Record<string, string>>) {
+  return `
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("region-button");
+  var list = document.getElementById("region-list");
+  var here = document.getElementById("region-here");
+  if (!button || !list || !here) return;
+  var ORDER = ${JSON.stringify(order)};
+  var HOLDS = ${JSON.stringify(holds)};
+
+  function open(on) {
+    list.hidden = !on;
+    button.setAttribute("aria-expanded", String(on));
+  }
+
+  function show(id) {
+    root.dataset.region = id;
+    try { localStorage.setItem("region", id); } catch (error) { /* it still holds for this page */ }
+    list.querySelectorAll("a[data-region]").forEach(function (link) {
+      var current = link.dataset.region === id;
+      if (current) { link.setAttribute("aria-current", "true"); here.textContent = link.textContent; }
+      else link.removeAttribute("aria-current");
+    });
+  }
+
+  // Hidden until here, because without this script neither control can do anything and a menu that
+  // does nothing is worse than no menu — the same rule the theme switch follows.
+  button.hidden = false;
+  show(root.dataset.region || ORDER[0]);
+
+  button.addEventListener("click", function () { open(list.hidden); });
+  list.addEventListener("click", function (event) {
+    var link = event.target.closest("a[data-region]");
+    if (!link) return;
+    event.preventDefault();
+    show(link.dataset.region);
+    // replaceState rather than a navigation: the region is where you are, not somewhere you went,
+    // and a back button that walked through every region looked at would be a nuisance.
+    history.replaceState(null, "", "#r/" + link.dataset.region);
+    open(false);
+    window.scrollTo(0, 0);
+  });
+  document.addEventListener("click", function (event) {
+    if (!list.hidden && !button.contains(event.target) && !list.contains(event.target)) open(false);
+  });
+  document.addEventListener("keydown", function (event) { if (event.key === "Escape") open(false); });
+
+  // A link into another region — a map pin, a chip, a bookmark — has to bring its region with it.
+  window.addEventListener("hashchange", function () {
+    var hash = decodeURIComponent(location.hash.slice(1));
+    var region = hash.slice(0, 2) === "r/" ? hash.slice(2) : HOLDS[hash];
+    if (!region || ORDER.indexOf(region) < 0 || region === root.dataset.region) return;
+    show(region);
+    // The browser has already tried to scroll, while the target was still hidden and had no place
+    // on the page to scroll to. Now it has one.
+    var target = hash.slice(0, 2) === "r/" ? null : document.getElementById(hash);
+    if (target) target.scrollIntoView();
+  });
+})();
+`
+}
 
 function bodyScript() {
   return `
@@ -811,23 +970,68 @@ export function renderPage(manifest: Manifest): string {
     `<a href="#top" class="to-top" aria-label="Back to the top">${ICONS.top}</a>`,
   ]
 
-  for (const entry of manifest.groups) {
-    const members = entry.place_ids
-      .map((id) => byId.get(id))
-      .filter((member): member is PlaceEntry => member !== undefined && !placed.has(member.id))
-    for (const member of members) placed.add(member.id)
-    sections.push(group(entry, members, manifest.generated_at, priority))
-    jumps.push(`<a href="#${escape(entry.id)}">${escape(entry.name)}</a>`)
+  const groupById = new Map(manifest.groups.map((entry) => [entry.id, entry]))
+  /** The menu order, and its first entry is what a visitor without a fragment is shown. */
+  const order: string[] = []
+  /** Group and place id to the region holding it, so an ordinary anchor also names a region. */
+  const holds: Record<string, string> = {}
+  const menu: string[] = []
+
+  // A manifest written before regions existed, or a site that defines none: one page, as before.
+  const titled = manifest.regions.length > 0
+  const regions: readonly RegionEntry[] = titled ? manifest.regions
+    : [{ id: "everywhere", name: "Everywhere", group_ids: manifest.groups.map((entry) => entry.id) }]
+
+  const add = (entry: RegionEntry, inner: string) => {
+    // A region whose every group failed and had nothing to carry over is left out entirely, rather
+    // than published as a menu entry leading to an empty page.
+    if (inner === "") return
+    order.push(entry.id)
+    sections.push(region(entry, inner, titled))
+    menu.push(`<a href="#r/${escape(entry.id)}" data-region="${escape(entry.id)}">${escape(entry.name)}</a>`)
   }
 
+  for (const entry of regions) {
+    const held = entry.group_ids
+      .map((id) => groupById.get(id))
+      .filter((found): found is GroupEntry => found !== undefined)
+    const solo = held.length === 1
+    add(entry, held.map((found) => {
+      const members = found.place_ids
+        .map((id) => byId.get(id))
+        .filter((member): member is PlaceEntry => member !== undefined && !placed.has(member.id))
+      for (const member of members) { placed.add(member.id); holds[member.id] = entry.id }
+      holds[found.id] = entry.id
+      // A region with one group would give it a chip saying what the region chip beside it says.
+      if (!solo) jumps.push(`<a href="#${escape(found.id)}" data-region="${escape(entry.id)}">${escape(found.name)}</a>`)
+      return group(found, members, manifest.generated_at, priority, solo)
+    }).join("\n  "))
+  }
+
+  // A place in no group at all gets a region rather than a section at the foot of someone else's:
+  // something that has not been filed should be easy to find, not tucked under whatever ran last.
   const loose = manifest.places.filter((entry) => !placed.has(entry.id))
   if (loose.length > 0) {
-    sections.push(`<section class="group" id="elsewhere">
-  <header class="group-head"><h2><a href="#elsewhere">Elsewhere</a></h2></header>
-  ${loose.map((entry) => place(entry, manifest.generated_at, priority)).join("\n  ")}
-</section>`)
-    jumps.push(`<a href="#elsewhere">Elsewhere</a>`)
+    for (const entry of loose) holds[entry.id] = "elsewhere"
+    add({ id: "elsewhere", name: "Elsewhere", group_ids: [] },
+      loose.map((entry) => place(entry, manifest.generated_at, priority, 3)).join("\n  "))
   }
+
+  // **One rule per region, and the script only ever sets an attribute.** Nothing is moved, nothing
+  // is rebuilt, and the state is applied before the first paint — which is also why the rules are
+  // generated here rather than written by hand: they are the one part of the stylesheet that
+  // depends on what is being published.
+  const regionCss = order.length < 2 ? "" : "\n" + order.map((id) =>
+    `:root[data-region="${id}"] .region:not([data-region="${id}"]),\n` +
+    `:root[data-region="${id}"] .jump a[data-region]:not([data-region="${id}"]) { display: none; }`,
+  ).join("\n")
+
+  // The chip sits inside the scrolling row, first; the list hangs off the bar and not off the row.
+  const regionChip = order.length < 2 ? "" :
+    `<button type="button" class="region-chip" id="region-button" aria-expanded="false"` +
+    ` aria-controls="region-list" hidden>${ICONS.menu}<span class="here" id="region-here"></span></button>`
+  const regionList = order.length < 2 ? "" :
+    `<nav class="region-list" id="region-list" aria-label="Regions" hidden>${menu.join("")}</nav>`
 
   // Named from what was drawn rather than from a sentence someone has to remember to edit. A place
   // that could not be redrawn keeps older cards, so this reads the run's own first full set.
@@ -864,8 +1068,8 @@ export function renderPage(manifest: Manifest): string {
 <meta name="apple-mobile-web-app-title" content="Almanac">
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0f1318" media="(prefers-color-scheme: dark)">
-<style>${STYLE}</style>
-<script>${HEAD_SCRIPT}</script>
+<style>${STYLE}${regionCss}</style>
+<script>${headScript(order, holds)}</script>
 </head>
 <body>
 <div class="bar">
@@ -880,8 +1084,9 @@ export function renderPage(manifest: Manifest): string {
     <div class="reload">
       <button type="button" id="reload" aria-label="Reload for the newest forecast">${ICONS.reload}</button>
     </div>
-    <nav class="jump" aria-label="Sections">${jumps.join("")}</nav>
+    <nav class="jump" aria-label="Sections">${regionChip}${jumps.join("")}</nav>
     </div>
+    ${regionList}
   </div>
 </div>
 <main id="top">
@@ -906,6 +1111,7 @@ export function renderPage(manifest: Manifest): string {
      <a href="https://github.com/ueisele/weather-cards">weather-cards</a>.</p>
 </footer>
 <script>${bodyScript()}</script>
+<script>${regionScript(order, holds)}</script>
 <script>${offlineScript(manifest)}</script>
 </body>
 </html>

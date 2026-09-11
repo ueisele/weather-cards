@@ -62,6 +62,25 @@ export type Group = Readonly<{
   comparison_model: Model
 }>
 
+/**
+ * A region: the top level, and the one thing the page shows only one of at a time.
+ *
+ * **Groups are named here, not nested here.** The file already references by id everywhere else --
+ * a group names its places -- so a region names its groups and the `groups` array stays flat. It
+ * also means a group can be moved between regions by editing one line rather than by moving a
+ * block of JSON from one place in the file to another.
+ *
+ * Every group belongs to exactly one region, and a group no region names is an error rather than
+ * a group that quietly stops being published. The order is the menu order, and the first region is
+ * the one a visitor arriving without a fragment is shown.
+ */
+export type Region = Readonly<{
+  id: string
+  name: string
+  note?: string
+  groups: readonly Group[]
+}>
+
 /** What the page calls itself. Here rather than in the code, because it is editorial too. */
 export type SiteIdentity = Readonly<{ title: string; tagline?: string }>
 
@@ -69,6 +88,7 @@ export type Site = Readonly<{
   identity: SiteIdentity
   places: readonly Place[]
   groups: readonly Group[]
+  regions: readonly Region[]
 }>
 
 class ConfigError extends Error {
@@ -147,6 +167,32 @@ function group(value: unknown, index: number, byId: Map<string, Place>): Group {
   }
 }
 
+function region(value: unknown, index: number, byId: Map<string, Group>, taken: Map<string, string>): Region {
+  if (typeof value !== "object" || value === null) throw new ConfigError(`regions[${index}]`, "must be an object.")
+  const entry = value as Record<string, unknown>
+  const id = text(entry.id, `regions[${index}].id`, 48)
+  if (!ID.test(id)) throw new ConfigError(`regions[${index}].id`, "must be lowercase letters, digits and hyphens.")
+  if (!Array.isArray(entry.groups)) throw new ConfigError(`${id}.groups`, "must be an array of group ids.")
+  if (entry.groups.length === 0) throw new ConfigError(`${id}.groups`, "is empty; a region with no group has nothing to show.")
+  const groups = entry.groups.map((member, position) => {
+    const name = text(member, `${id}.groups[${position}]`, 48)
+    const found = byId.get(name)
+    if (!found) throw new ConfigError(`${id}.groups[${position}]`, `names "${name}", which is not a group.`)
+    // Two regions holding one group would draw the same section twice under two menu entries, and
+    // the second copy would carry duplicate element ids -- so every anchor in it points at the first.
+    const owner = taken.get(name)
+    if (owner !== undefined) throw new ConfigError(`${id}.groups[${position}]`, `names "${name}", which "${owner}" already holds.`)
+    taken.set(name, id)
+    return found
+  })
+  return {
+    id,
+    name: text(entry.name, `${id}.name`),
+    groups,
+    ...(entry.note === undefined ? {} : { note: text(entry.note, `${id}.note`, 240) }),
+  }
+}
+
 export function parseSite(raw: unknown): Site {
   if (typeof raw !== "object" || raw === null) throw new ConfigError("the file", "must hold an object.")
   const document = raw as Record<string, unknown>
@@ -167,6 +213,21 @@ export function parseSite(raw: unknown): Site {
     if (groupIds.has(entry.id)) throw new ConfigError("groups", `names "${entry.id}" twice.`)
     groupIds.add(entry.id)
   }
+  const byGroupId = new Map(groups.map((entry) => [entry.id, entry]))
+  const regionList = document.regions === undefined ? [] : document.regions
+  if (!Array.isArray(regionList)) throw new ConfigError("regions", "must be an array.")
+  const taken = new Map<string, string>()
+  const regions = regionList.map((entry, index) => region(entry, index, byGroupId, taken))
+  const regionIds = new Set<string>()
+  for (const entry of regions) {
+    if (regionIds.has(entry.id)) throw new ConfigError("regions", `names "${entry.id}" twice.`)
+    regionIds.add(entry.id)
+  }
+  // **Loud, on purpose.** A region is what the menu is built from, so a group in none of them would
+  // be drawn, uploaded and unreachable -- the failure that looks exactly like nothing being wrong.
+  const orphan = groups.find((entry) => !taken.has(entry.id))
+  if (orphan) throw new ConfigError("groups", `holds "${orphan.id}", which no region names; every group belongs to exactly one.`)
+
   const identity = document.site === undefined ? { title: "Weather cards" } : (() => {
     if (typeof document.site !== "object" || document.site === null) throw new ConfigError("site", "must be an object.")
     const entry = document.site as Record<string, unknown>
@@ -175,7 +236,7 @@ export function parseSite(raw: unknown): Site {
       ...(entry.tagline === undefined ? {} : { tagline: text(entry.tagline, "site.tagline", 160) }),
     }
   })()
-  return { identity, places, groups }
+  return { identity, places, groups, regions }
 }
 
 export async function loadSite(path: string): Promise<Site> {

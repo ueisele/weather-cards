@@ -1,8 +1,8 @@
 {
-  "$comment": "The places this site publishes. Editing this file is the whole editorial surface: the next run adds what appeared here and prunes what left. A group is drawn as one places_comparison and holds at most four places, which is both the chart's own limit and the point where four lines stop being readable.",
+  "$comment": "The places this site publishes. Editing this file is the whole editorial surface: the next run adds what appeared here and prunes what left. A group is drawn as one places_comparison and holds at most four places, which is both the chart's own limit and the point where four lines stop being readable. A region is the level above: the menu shows one at a time, every group belongs to exactly one, and the first region is what a visitor arriving without a fragment sees.",
 
   "site": {
-    "title": "Lomsdal-Visten Almanac",
+    "title": "Almanac",
     "tagline": "Point forecasts from three models, redrawn through the day."
   },
 
@@ -262,14 +262,33 @@
     {
       "id": "lofoten",
       "name": "Lofoten",
-      "note": "Not the route: Reine on Moskenesøya and the mountain above it, 250 km north. Last, so the route reads through from Entrance to Eastern without a detour.",
       "places": ["reine", "markan"]
     },
     {
       "id": "abisko",
       "name": "Abisko",
-      "note": "Not the route: a few days in Swedish Lapland, 400 km north-east. Two Malmbanan halts and two STF cabins. No locator map: Kartverket draws nothing over Sweden, so the render leaves it out.",
       "places": ["bjorkliden", "abisko-ostra", "karsavagge", "abiskojaure"]
+    }
+  ],
+
+  "regions": [
+    {
+      "id": "lomsdal-visten",
+      "name": "Lomsdal-Visten",
+      "note": "The route: the towns on the way in, then the line from the northern start to the southern endpoint, cut into sections small enough for one comparison chart.",
+      "groups": ["entrance", "northern-section", "central-section-1", "central-section-2", "central-section-3", "southern-section", "eastern-section"]
+    },
+    {
+      "id": "lofoten",
+      "name": "Lofoten",
+      "note": "Not the route: Reine on Moskenesøya and the mountain above it, 250 km north.",
+      "groups": ["lofoten"]
+    },
+    {
+      "id": "abisko",
+      "name": "Abisko",
+      "note": "Not the route: a few days in Swedish Lapland, 400 km north-east. Two Malmbanan halts and two STF cabins. No locator map: Kartverket draws nothing over Sweden, so the render leaves it out.",
+      "groups": ["abisko"]
     }
   ]
 }
