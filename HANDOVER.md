@@ -124,13 +124,14 @@ its *open* items, and nothing else.
   an answer would have held only for one device and one iOS version.
 - **`remote-dev` has no DNS token** and **the WebP figure is Firefox's** are unchanged.
 
-Two things this file points at are *not* beside it, because moving it moved it away from them.
-Both are still on `forge` in `~/mockups/almanac/`, which is version controlled by nothing:
+Two things this file pointed at with relative paths were left behind in `~/mockups/almanac/` when
+it moved. Both are settled now, and `~/mockups/almanac/` is gone:
 
-- `harness/` — the 25 measurement scripts the figures above came out of, `agebounds.mjs` among
-  them. A few kilobytes of `.mjs` under 19 MB of `node_modules`.
-- `icons/` — `draw.ts`, which the cairn pair was drawn from, and the rendered PNGs for both sites.
-  `TASK-trails-atlas-icon.md` beside them is done and can go.
-
-Worth bringing in the day anybody needs to re-take a figure or redraw the pair; named here so that
-the loss is a decision rather than a surprise.
+- `harness/` — the measurement scripts the figures above came out of. The ten that carried a
+  comment saying what they asked are in `measurements/` beside this file, with a README naming the
+  figure each produced; `agebounds.mjs` re-runs against the current build and still reports 7,201
+  minutes checked and 0 problems. The other fifteen were scratch iterations and were not kept.
+- `icons/` — `draw.ts` and the annotated `almanac-icon-reference.ts`. **Both were already
+  versioned** and the mockup held byte-identical copies: the reference *is* `scripts/lib/icon.ts`
+  here, and both files are in `trails/docs/`, committed as `2013620`. Nothing was lost and nothing
+  needed importing. `TASK-trails-atlas-icon.md` beside them was done.
