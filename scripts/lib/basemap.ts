@@ -14,6 +14,8 @@
  * then lives in the bucket; the key carries a fingerprint of the extent, so a moved group is a new
  * object rather than the same one with different content.
  */
+import { inflateSync } from "node:zlib"
+
 import type { Place } from "./config"
 
 /** The charts' own canvas. The map matches it so the page keeps one rhythm down the column. */
@@ -69,6 +71,89 @@ export function withinCoverage(places: readonly Place[]) {
   return places.every((place) =>
     place.latitude >= NORWAY.south && place.latitude <= NORWAY.north &&
     place.longitude >= NORWAY.west && place.longitude <= NORWAY.east)
+}
+
+/**
+ * Whether a PNG holds exactly one colour, which is how this source says "nothing here".
+ *
+ * **Kartverket answers for any extent on earth, and outside its own coverage the answer is a white
+ * rectangle** — status 200, a valid PNG, 11.9 kB of nothing. Measured over Abisko in Swedish
+ * Lapland: one unique colour across 2.9 million pixels, on `topo` and on `topograatone` alike, and
+ * no other Geonorge layer answers there at all.
+ *
+ * A latitude box cannot catch that — 68.4 N, 18.7 E sits comfortably inside any rectangle drawn
+ * around Norway — and the real border is not a shape worth carrying here. So the test is the
+ * picture rather than a guess about where the picture would work, which also means it holds for
+ * whatever extent someone asks for next.
+ *
+ * Conservative by construction: anything it cannot read, it calls not blank, and the map is kept.
+ */
+export function isBlank(bytes: Uint8Array): boolean {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  if (bytes.byteLength < 8 || view.getUint32(0) !== 0x89504e47) return false
+  let offset = 8
+  let width = 0
+  let depth = 0
+  let channels = 0
+  const parts: Uint8Array[] = []
+  while (offset + 8 <= bytes.byteLength) {
+    const length = view.getUint32(offset)
+    const type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8))
+    const body = bytes.subarray(offset + 8, offset + 8 + length)
+    if (type === "IHDR") {
+      width = view.getUint32(offset + 8)
+      depth = body[8]!
+      channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[body[9]!] ?? 0
+      // Interlaced rows are not stored in image order, so the walk below would not be scanlines.
+      if (channels === 0 || body[12] !== 0) return false
+    } else if (type === "IDAT") parts.push(body)
+    else if (type === "IEND") break
+    offset += 12 + length
+  }
+  if (width === 0 || parts.length === 0) return false
+  let raw: Buffer
+  try {
+    raw = inflateSync(Buffer.concat(parts))
+  } catch {
+    return false
+  }
+  const bpp = Math.max(1, Math.ceil((depth * channels) / 8))
+  const stride = Math.ceil((width * depth * channels) / 8)
+  const line = new Uint8Array(stride)
+  const previous = new Uint8Array(stride)
+  let first: number | undefined
+  for (let start = 0; start + 1 + stride <= raw.byteLength; start += 1 + stride) {
+    const filter = raw[start]!
+    for (let index = 0; index < stride; index++) {
+      const value = raw[start + 1 + index]!
+      const left = index >= bpp ? line[index - bpp]! : 0
+      const up = previous[index]!
+      const upLeft = index >= bpp ? previous[index - bpp]! : 0
+      let restored: number
+      switch (filter) {
+        case 0: restored = value; break
+        case 1: restored = value + left; break
+        case 2: restored = value + up; break
+        case 3: restored = value + ((left + up) >> 1); break
+        case 4: {
+          const estimate = left + up - upLeft
+          const dLeft = Math.abs(estimate - left)
+          const dUp = Math.abs(estimate - up)
+          const dUpLeft = Math.abs(estimate - upLeft)
+          restored = value + (dLeft <= dUp && dLeft <= dUpLeft ? left : dUp <= dUpLeft ? up : upLeft)
+          break
+        }
+        default: return false
+      }
+      restored &= 0xff
+      line[index] = restored
+      first ??= restored
+      // One byte unlike the rest is enough: there is a picture here.
+      if (restored !== first) return false
+    }
+    previous.set(line)
+  }
+  return true
 }
 
 export function planExtent(places: readonly Place[]): Extent {

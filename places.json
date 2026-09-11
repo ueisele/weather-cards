@@ -175,6 +175,38 @@
       "note": "Mountain in Lofotodden nasjonalpark, 8 km north of Reine; 396.3 m, open ground"
     },
     {
+      "id": "bjorkliden",
+      "name": "Björkliden station",
+      "latitude": 68.40653,
+      "longitude": 18.68563,
+      "elevation_m": 425,
+      "note": "Malmbanan halt above Torneträsk; the northern way in. 425 m per Open-Meteo's 90 m DEM, 434 m per Mapzen"
+    },
+    {
+      "id": "abisko-ostra",
+      "name": "Abisko Östra station",
+      "latitude": 68.34900,
+      "longitude": 18.82860,
+      "elevation_m": 390,
+      "note": "The village halt, one stop before Abisko Turiststation. 390 m per DEM against OpenStreetMap's surveyed 388 m"
+    },
+    {
+      "id": "karsavagge",
+      "name": "STF Kårsavagge fjällstuga",
+      "latitude": 68.33455,
+      "longitude": 18.50129,
+      "elevation_m": 700,
+      "note": "Cabin in the Kårsavagge valley, the highest of the four. 700 m per DEM, 713 m per Mapzen; no surveyed figure"
+    },
+    {
+      "id": "abiskojaure",
+      "name": "STF Abiskojaure fjällstuga",
+      "latitude": 68.28601,
+      "longitude": 18.59127,
+      "elevation_m": 490,
+      "note": "Cabin at Ábeskojávri on the Kungsleden, south of the others. 490 m per DEM and per OpenStreetMap alike"
+    },
+    {
       "id": "tosbotnet",
       "name": "Tosbotnet",
       "latitude": 65.32603,
@@ -232,6 +264,12 @@
       "name": "Lofoten",
       "note": "Not the route: Reine on Moskenesøya and the mountain above it, 250 km north. Last, so the route reads through from Entrance to Eastern without a detour.",
       "places": ["reine", "markan"]
+    },
+    {
+      "id": "abisko",
+      "name": "Abisko",
+      "note": "Not the route: a few days in Swedish Lapland, 400 km north-east. Two Malmbanan halts and two STF cabins. No locator map: Kartverket draws nothing over Sweden, so the render leaves it out.",
+      "places": ["bjorkliden", "abisko-ostra", "karsavagge", "abiskojaure"]
     }
   ]
 }

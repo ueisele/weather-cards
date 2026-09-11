@@ -19,7 +19,15 @@ import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { loadSite, MODEL_LABELS, MODELS, THEMES, type Place, type Theme } from "./lib/config"
 import {
-  ATTRIBUTION, fetchMap, MAP_HEIGHT, MAP_WIDTH, mapUrl, markerPoints, planExtent, withinCoverage,
+  ATTRIBUTION,
+  fetchMap,
+  isBlank,
+  MAP_HEIGHT,
+  MAP_WIDTH,
+  mapUrl,
+  markerPoints,
+  planExtent,
+  withinCoverage,
 } from "./lib/basemap"
 import { loadRenderer, readPin, REPOSITORY_ROOT } from "./lib/renderer"
 import {
@@ -147,6 +155,12 @@ async function mapCard(
     await mkdir(MAP_CACHE, { recursive: true })
     await writeFile(local, bytes)
     where = "rendered by Kartverket"
+  }
+  // Cached first and judged after, so a group outside the source's coverage costs one request ever
+  // rather than one an hour.
+  if (isBlank(bytes)) {
+    console.log(`  ${id}: no map — the source draws nothing over this extent`)
+    return undefined
   }
   for (const [key, body] of [
     [image, bytes],
