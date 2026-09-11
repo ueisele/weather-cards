@@ -123,3 +123,14 @@ its *open* items, and nothing else.
   unmeasured — and in `trails` it was deliberately made not to matter rather than measured, because
   an answer would have held only for one device and one iOS version.
 - **`remote-dev` has no DNS token** and **the WebP figure is Firefox's** are unchanged.
+
+Two things this file points at are *not* beside it, because moving it moved it away from them.
+Both are still on `forge` in `~/mockups/almanac/`, which is version controlled by nothing:
+
+- `harness/` — the 25 measurement scripts the figures above came out of, `agebounds.mjs` among
+  them. A few kilobytes of `.mjs` under 19 MB of `node_modules`.
+- `icons/` — `draw.ts`, which the cairn pair was drawn from, and the rendered PNGs for both sites.
+  `TASK-trails-atlas-icon.md` beside them is done and can go.
+
+Worth bringing in the day anybody needs to re-take a figure or redraw the pair; named here so that
+the loss is a decision rather than a surprise.
