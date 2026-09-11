@@ -17,6 +17,20 @@ export const MODEL_LABELS: Readonly<Record<Model, string>> = {
   ecmwf: "ECMWF IFS",
 }
 
+/**
+ * Read for one field and given no card of its own.
+ *
+ * SMHI's SNOW publishes the height the cloud starts at, in metres above the ground, and no other
+ * source this site draws from publishes it at all — MET has no cloud base, top or ceiling anywhere
+ * in its forecast, and Open-Meteo answers the field with nulls for ICON and for ECMWF. It carries
+ * no temperature, precipitation or wind here, so it is not a fourth model: it appears only in the
+ * spread chart's sky panel, as one more line on an axis that already means metres above ground.
+ *
+ * Not in the group comparisons, on purpose. Those draw one model across several places, and a
+ * second model's cloud base there would be four more lines answering a different question.
+ */
+export const SKY_MODEL = "smhi"
+
 /** Both are drawn, and a visitor's browser fetches exactly one of them. */
 export const THEMES = ["dark", "light"] as const
 export type Theme = (typeof THEMES)[number]

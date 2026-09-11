@@ -17,7 +17,7 @@ import { createHash } from "node:crypto"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
-import { loadSite, MODEL_LABELS, MODELS, THEMES, type Place, type Theme } from "./lib/config"
+import { loadSite, MODEL_LABELS, MODELS, SKY_MODEL, THEMES, type Place, type Theme } from "./lib/config"
 import {
   ATTRIBUTION,
   fetchMap,
@@ -296,7 +296,9 @@ try {
     try {
       await draw({
         targets: [target(place)],
-        providers: [...MODELS],
+        // The sky model is fetched for the spread and draws only in its cloud panel; it has no
+        // card of its own, so it is absent from the loop above.
+        providers: [...MODELS, SKY_MODEL],
         // The document only has to carry the days; every chart draws the source's own periods.
         resolutions: ["daily"],
         start_date: day(0),
