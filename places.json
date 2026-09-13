@@ -207,6 +207,22 @@
       "note": "Cabin at Ábeskojávri on the Kungsleden, south of the others. 490 m per DEM and per OpenStreetMap alike"
     },
     {
+      "id": "laktatjakko",
+      "name": "Låktatjåkko fjällstation",
+      "latitude": 68.39865,
+      "longitude": 18.46096,
+      "elevation_m": 1226,
+      "note": "Mountain station on the plateau west of Björkliden, 1226 m; Open-Meteo's 90 m DEM says 1223 m"
+    },
+    {
+      "id": "njulla",
+      "name": "Njulla",
+      "latitude": 68.37269,
+      "longitude": 18.69882,
+      "elevation_m": 1164,
+      "note": "The top south of Abisko Östra, 1164 m; the 90 m DEM smooths a summit downwards and says 1146 m"
+    },
+    {
       "id": "tosbotnet",
       "name": "Tosbotnet",
       "latitude": 65.32603,
@@ -266,8 +282,15 @@
     },
     {
       "id": "abisko",
-      "name": "Abisko",
+      "name": "Halts and cabins",
+      "note": "Two Malmbanan stops and two STF cabins, 390 to 700 m — where the days start and end.",
       "places": ["bjorkliden", "abisko-ostra", "karsavagge", "abiskojaure"]
+    },
+    {
+      "id": "abisko-tops",
+      "name": "Above the treeline",
+      "note": "Låktatjåkko and Njulla, both a little over a kilometre up and some 700 m above the halts. Their own section because a comparison draws at most four places, and because that height is the whole difference.",
+      "places": ["laktatjakko", "njulla"]
     }
   ],
 
@@ -287,8 +310,8 @@
     {
       "id": "abisko",
       "name": "Abisko",
-      "note": "Not the route: a few days in Swedish Lapland, 400 km north-east. Two Malmbanan halts and two STF cabins. No locator map: Kartverket draws nothing over Sweden, so the render leaves it out.",
-      "groups": ["abisko"]
+      "note": "Not the route: a few days in Swedish Lapland, 400 km north-east. Two Malmbanan halts, two STF cabins and two points above the treeline. No locator map: Kartverket draws nothing over Sweden.",
+      "groups": ["abisko", "abisko-tops"]
     }
   ]
 }
