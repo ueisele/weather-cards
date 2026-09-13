@@ -223,6 +223,14 @@
       "note": "The middle of the three tops, between Låktatjåkko and Njulla, 1164 m; the 90 m DEM smooths a summit and says 1155 m"
     },
     {
+      "id": "abiskojaure-pass",
+      "name": "Pass to Abiskojaure",
+      "latitude": 68.31559,
+      "longitude": 18.55408,
+      "elevation_m": 1138,
+      "note": "The crest of the direct crossing between the two cabins, 3.0 km from one and 3.6 from the other. No name in OpenStreetMap; the 90 m DEM says 1131 m"
+    },
+    {
       "id": "njulla",
       "name": "Njulla",
       "latitude": 68.37269,
@@ -297,8 +305,8 @@
     {
       "id": "abisko-tops",
       "name": "Above the treeline",
-      "note": "Låktatjåkko, Kåppatjåkka and Njulla, west to east, all a little over a kilometre up and some 700 m above the halts. Their own section because that height is the whole difference.",
-      "places": ["laktatjakko", "kappatjakka", "njulla"]
+      "note": "Låktatjåkko, Kåppatjåkka and Njulla run west to east a little over a kilometre up; the pass to Abiskojaure sits 6 km south at much the same height. Their own section because that height is the whole difference from the halts.",
+      "places": ["laktatjakko", "kappatjakka", "abiskojaure-pass", "njulla"]
     }
   ],
 
@@ -318,7 +326,7 @@
     {
       "id": "abisko",
       "name": "Abisko",
-      "note": "Not the route: a few days in Swedish Lapland, 400 km north-east. Two Malmbanan halts, two STF cabins and three points above the treeline. No locator map: Kartverket draws nothing over Sweden.",
+      "note": "Not the route: a few days in Swedish Lapland, 400 km north-east. Two Malmbanan halts, two STF cabins and four points above the treeline. No locator map: Kartverket draws nothing over Sweden.",
       "groups": ["abisko", "abisko-tops"]
     }
   ]
