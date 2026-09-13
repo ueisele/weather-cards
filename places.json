@@ -215,6 +215,14 @@
       "note": "Mountain station on the plateau west of Björkliden, 1226 m; Open-Meteo's 90 m DEM says 1223 m"
     },
     {
+      "id": "kappatjakka",
+      "name": "Kåppatjåkka",
+      "latitude": 68.37252,
+      "longitude": 18.5436,
+      "elevation_m": 1164,
+      "note": "The middle of the three tops, between Låktatjåkko and Njulla, 1164 m; the 90 m DEM smooths a summit and says 1155 m"
+    },
+    {
       "id": "njulla",
       "name": "Njulla",
       "latitude": 68.37269,
@@ -289,8 +297,8 @@
     {
       "id": "abisko-tops",
       "name": "Above the treeline",
-      "note": "Låktatjåkko and Njulla, both a little over a kilometre up and some 700 m above the halts. Their own section because a comparison draws at most four places, and because that height is the whole difference.",
-      "places": ["laktatjakko", "njulla"]
+      "note": "Låktatjåkko, Kåppatjåkka and Njulla, west to east, all a little over a kilometre up and some 700 m above the halts. Their own section because that height is the whole difference.",
+      "places": ["laktatjakko", "kappatjakka", "njulla"]
     }
   ],
 
@@ -310,7 +318,7 @@
     {
       "id": "abisko",
       "name": "Abisko",
-      "note": "Not the route: a few days in Swedish Lapland, 400 km north-east. Two Malmbanan halts, two STF cabins and two points above the treeline. No locator map: Kartverket draws nothing over Sweden.",
+      "note": "Not the route: a few days in Swedish Lapland, 400 km north-east. Two Malmbanan halts, two STF cabins and three points above the treeline. No locator map: Kartverket draws nothing over Sweden.",
       "groups": ["abisko", "abisko-tops"]
     }
   ]
